@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>文言文断句练习与规则引擎</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/opencc-js@1.0.5/dist/umd/full.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Noto Serif SC', 'Songti SC', 'SimSun', serif; background-color: #F7F2E7; color: #2B2623; }
+    .paper-card { background-color: #FCF9F2; border: 1px solid #E2D7C3; box-shadow: 0 4px 20px rgba(43, 38, 35, 0.05); }
+    
+    .practice-char { display: inline-block; padding: 2px 4px; cursor: pointer; border-radius: 4px; transition: background 0.2s; position: relative; }
+    .practice-char:hover { background: #EFE6D5; }
+    .practice-char.marked { border-bottom: 3px solid #B83B2A; margin-right: 8px; color: #B83B2A; font-weight: bold; }
+    .practice-char.marked::after { content: attr(data-punct); position: absolute; right: -12px; bottom: -5px; font-size: 0.8em; color: #B83B2A; }
+
+    #infoModal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100; align-items: center; justify-content: center; }
+    .modal-content { background: #FCF9F2; border-radius: 12px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+    
+    /* 规则卡片样式 */
+    .rule-card { border-left: 4px solid #B83B2A; background: #FFF8EB; padding: 10px; border-radius: 4px; margin-bottom: 8px; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <header class="border-b border-[#E2D7C3] bg-[#FCF9F2] px-4 py-3 shadow-sm">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <span class="inline-flex items-center justify-center w-8 h-8 rounded bg-[#B83B2A] text-[#FCF9F2] font-bold text-lg">句</span>
+        <h1 class="text-xl font-bold tracking-wider text-[#2B2623]">文言文断句练习系统 (规则引擎版)</h1>
+      </div>
+      <div class="flex items-center gap-2">
+        <button onclick="loadCloudData()" id="btnCloud" class="px-4 py-1.5 rounded-lg bg-[#5C4938] hover:bg-[#47382B] text-[#FCF9F2] text-sm font-medium transition shadow-sm">
+          ☁️ 加载云端知识库 (6合1)
+        </button>
+        <span id="cloudStatus" class="text-xs text-orange-500 font-medium">未加载</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-4">
+    <section class="lg:col-span-4 flex flex-col gap-4">
+      <div class="paper-card rounded-xl p-4 flex flex-col gap-3">
+        <h2 class="font-bold text-sm text-[#5C4938]">一、输入或选择课文</h2>
+        <div class="flex gap-2">
+           <select id="textSelect" class="flex-1 p-2 rounded bg-[#F7F2E7] border border-[#DCD0BC] text-sm">
+             <option value="">-- 点击右上角加载题库 --</option>
+           </select>
+        </div>
+        <textarea id="rawInput" rows="6" placeholder="请粘贴无标点文言文..." class="w-full p-3 rounded bg-[#F7F2E7] border border-[#DCD0BC] text-sm leading-relaxed resize-none"></textarea>
+        <button onclick="startPractice()" class="w-full py-2 rounded-lg bg-[#B83B2A] hover:bg-[#9E3021] text-[#FCF9F2] font-bold shadow-sm transition">
+          ✏️ 开始断句练习
+        </button>
+        <button onclick="showAnswer()" class="w-full py-2 rounded-lg border border-[#B83B2A] text-[#B83B2A] font-bold hover:bg-[#FFF8EB] transition">
+          👁️ 查看标准答案
+        </button>
+      </div>
+    </section>
+
+    <section class="lg:col-span-8 flex flex-col">
+      <div class="paper-card rounded-xl p-6 flex-1 flex flex-col relative">
+        <div class="flex justify-between items-center pb-2 mb-4 border-b border-[#E6DCCB]">
+          <h2 id="viewTitle" class="font-bold text-lg text-[#5C4938]">断句练习区</h2>
+          <span class="text-xs text-gray-500" id="hintText">请点击空白处添加标点</span>
+        </div>
+        
+        <div id="outputContainer" class="flex-1 overflow-y-auto text-xl leading-loose tracking-wide">
+          <div class="text-center text-[#9A8C7D] py-16 text-base">请在左侧输入文本并点击“开始断句练习”</div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="infoModal" onclick="closeModal(event)">
+    <div class="modal-content" onclick="event.stopPropagation()">
+      <div class="flex justify-between items-center mb-4 border-b border-[#E2D7C3] pb-2">
+        <h3 id="modalTitle" class="text-lg font-bold text-[#B83B2A]"></h3>
+        <button onclick="closeModal()" class="text-gray-500 hover:text-black">✕</button>
+      </div>
+      <div id="modalBody" class="text-sm leading-relaxed text-[#4A443F] space-y-3"></div>
+    </div>
+  </div>
+
+  <script>
+    let t2sConverter = null;
+    if (window.OpenCC) t2sConverter = OpenCC.Converter({ from: 'tw', to: 'cn' });
+
+    // 全局合并库
+    let CLOUD_DATA = { 
+      shici: [], xuci: [], jushi: [], texts: [],
+      rules: {} // 新增：断句规则库
+    };
+    
+    let isDataLoaded = false;
+    let currentRawClean = ''; 
+    let standardPunctMap = {}; 
+    let standardRuleExplain = {}; // 记录标点对应的具体规则对象
+    let userMarks = {}; 
+
+    // ==================== 2. 从 GitHub 拉取全部 6 个文件 ====================
+    window.loadCloudData = async function() {
+      const btn = document.getElementById('btnCloud');
+      const status = document.getElementById('cloudStatus');
+      btn.disabled = true;
+      status.innerText = '连接 GitHub 拉取...';
+      status.className = 'text-xs text-blue-500 font-medium animate-pulse';
+
+      const base = 'https://raw.githubusercontent.com/YOUR_USER/YOUR_REPO/main/';
+      
+      try {
+        const [dataShici, dataXuci, dataJushi, dataCz, dataGz, dataRules] = await Promise.all([
+          fetch(base + '实词_合集.json').then(r => r.json()),
+          fetch(base + '虚词_合集.json').then(r => r.json()),
+          fetch(base + '句式_合集.json').then(r => r.json()),
+          fetch(base + 'cz.json').then(r => r.json()),
+          fetch(base + 'gz.json').then(r => r.json()),
+          // ⚠️ 如果你把规则库也传到GitHub了，就填在这里。如果没有，我们在后面做后备
+          fetch(base + '古文断句标点规则库.json').then(r => r.json()).catch(() => ({})) 
+        ]);
+
+        CLOUD_DATA.shici = dataShici;
+        CLOUD_DATA.xuci = dataXuci;
+        CLOUD_DATA.jushi = dataJushi;
+        CLOUD_DATA.rules = dataRules;
+
+        // 提取题库文章
+        const extractTexts = (jsonObj) => {
+           if (jsonObj['文言文文章']) {
+             return jsonObj['文言文文章'].map(item => ({ title: item['篇名'], content: item['正文'] }));
+           }
+           return [];
+        };
+        CLOUD_DATA.texts = [...extractTexts(dataCz), ...extractTexts(dataGz)];
+
+        isDataLoaded = true;
+        status.innerText = '✅ 6 个文件已全部加载';
+        status.className = 'text-xs text-green-600 font-medium';
+        btn.innerText = '☁️ 重新同步';
+        
+        // 填充下拉框
+        const sel = document.getElementById('textSelect');
+        sel.innerHTML = '<option value="">-- 选择云端课文（共 ' + CLOUD_DATA.texts.length + ' 篇）--</option>';
+        CLOUD_DATA.texts.forEach((t, idx) => {
+          sel.innerHTML += `<option value="${idx}">${t.title}</option>`;
+        });
+
+      } catch (err) {
+        console.error("拉取失败:", err);
+        status.innerText = '❌ 拉取失败';
+        status.className = 'text-xs text-red-500 font-medium';
+        alert('云端数据拉取失败！请检查链接是否正确。');
+      } finally {
+        btn.disabled = false;
+      }
+    };
+
+    // 处理选择课文
+    document.getElementById('textSelect').addEventListener('change', function(e) {
+      const idx = e.target.value;
+      if (idx === "") return;
+      const textObj = CLOUD_DATA.texts[idx];
+      document.getElementById('rawInput').value = textObj.content.replace(/[^\u4e00-\u9fa5]/g, '');
+    });
+
+    // ==================== 3. 由 JSON 驱动的断句引擎 ====================
+    function runEngineFromRules(rawText) {
+      const clean = t2sConverter ? t2sConverter(rawText.replace(/[^\u4e00-\u9fa5]/g, '')) : rawText.replace(/[^\u4e00-\u9fa5]/g, '');
+      const n = clean.length;
+      const punctMap = {};
+      const ruleExplain = {}; // 存储标准答案依据
+
+      // 3.1 优先处理句尾语气词 (sentence_end.particles)
+      if (CLOUD_DATA.rules && CLOUD_DATA.rules.sentence_end) {
+          const particles = CLOUD_DATA.rules.sentence_end.particles;
+          for (let i = 0; i < n; i++) {
+             const ch = clean[i];
+             const pRule = particles.find(p => p.char === ch);
+             if (pRule) {
+                 // 处理例外情况（如“也”后接“者、乎、哉”）
+                 let skip = false;
+                 if (pRule.exceptions) {
+                     pRule.exceptions.forEach(ex => {
+                         if (ex.context.includes('者') && clean[i+1] === '者') skip = true;
+                         if (ex.context.includes('则') && clean[i+1] === '则') { punctMap[i] = '，'; skip = true; }
+                     });
+                 }
+                 if (!skip) {
+                     punctMap[i] = pRule.punct || '。';
+                     ruleExplain[i] = pRule;
+                 }
+             }
+          }
+      }
+
+      // 3.2 处理句首发语词 (sentence_start.fa_yu 等)
+      if (CLOUD_DATA.rules && CLOUD_DATA.rules.sentence_start) {
+          const starts = CLOUD_DATA.rules.sentence_start;
+          const checkStart = (arr, forcePunct='。') => {
+             if (!arr) return;
+             arr.forEach(item => {
+                 let idx = clean.indexOf(item.word);
+                 while (idx !== -1) {
+                     if (idx > 0 && !punctMap[idx-1]) {
+                         punctMap[idx-1] = item.punct === 'before' ? forcePunct : '，';
+                         ruleExplain[idx-1] = { type: '句首标志', item };
+                     }
+                     idx = clean.indexOf(item.word, idx + 1);
+                 }
+             });
+          };
+          checkStart(starts.fa_yu);
+          checkStart(starts.compound_function_words, '。');
+      }
+
+      // 3.3 处理固定结构 (fixed_structures)
+      if (CLOUD_DATA.rules && CLOUD_DATA.rules.fixed_structures) {
+          const structs = CLOUD_DATA.rules.fixed_structures;
+          structs.forEach(st => {
+              if (!st.regex) return;
+              try {
+                  const re = new RegExp(st.regex, 'g');
+                  let match;
+                  while ((match = re.exec(clean)) !== null) {
+                      const start = match.index;
+                      const end = start + match[0].length - 1;
+                      // 在内部添加标点（如判断句的“者”后）
+                      if (st.inner) {
+                          st.inner.forEach(inner => {
+                              const innerIdx = match[0].indexOf(inner.chars[0]);
+                              if (innerIdx !== -1 && !punctMap[start + innerIdx]) {
+                                  punctMap[start + innerIdx] = inner.punct;
+                                  ruleExplain[start + innerIdx] = st;
+                              }
+                          });
+                      }
+                      // 在末尾添加标点
+                      if (st.mark_after && !punctMap[end]) {
+                          punctMap[end] = st.mark_after;
+                          ruleExplain[end] = st;
+                      }
+                  }
+              } catch(e) { console.warn('正则解析错误:', st.regex); }
+          });
+      }
+
+      // 结尾兜底
+      if (!punctMap[n-1]) {
+          punctMap[n-1] = '。';
+          ruleExplain[n-1] = { label: '句意结束', note: '全句语义完整。' };
+      }
+
+      return { punctMap, ruleExplain };
+    }
+
+    // ==================== 4. 生成解析 ====================
+    function getAnalysis(punctIndex, punctChar) {
+      const charBefore = currentRawClean[punctIndex];
+      let html = '';
+
+      // 1. 优先展示 JSON 中的标准规则解析
+      if (isDataLoaded && standardRuleExplain[punctIndex]) {
+          const ruleObj = standardRuleExplain[punctIndex];
+          html += `<div class="rule-card">`;
+          html += `<div class="font-bold text-[#B83B2A] mb-1">📏 判定规则：</div>`;
+          if (ruleObj.label) html += `<p class="text-sm">${ruleObj.label}</p>`;
+          if (ruleObj.note) html += `<p class="text-xs text-gray-600 mt-1">${ruleObj.note}</p>`;
+          if (ruleObj.examples) html += `<p class="text-xs text-gray-500 mt-1">例：${Array.isArray(ruleObj.examples) ? ruleObj.examples[0] : ruleObj.examples}</p>`;
+          if (ruleObj.item) html += `<p class="text-xs text-gray-500 mt-1">规则词：${ruleObj.item.word}，${ruleObj.item.gloss || ''}</p>`;
+          if (ruleObj.example) html += `<p class="text-xs text-gray-500 mt-1">例：${ruleObj.example}</p>`;
+          html += `</div>`;
+      } else {
+          html += `<div class="rule-card"><p class="text-sm">根据语意，此处应自然停顿。</p></div>`;
+      }
+
+      // 2. 查虚词库
+      if (isDataLoaded) {
+          let xuciInfo = '';
+          const targetXuci = CLOUD_DATA.xuci.find(item => item.zi === charBefore || item.zi === punctChar);
+          if (targetXuci) {
+            xuciInfo += `<ul class="list-disc pl-4 space-y-1 text-xs text-gray-600">`;
+            targetXuci.body.forEach(item => {
+              if (item[0] && item[1]) xuciInfo += `<li><b>${item[0]}</b> 例：${item[1]}</li>`;
+              else if (item[0]) xuciInfo += `<li class="font-bold text-[#5C4938] pt-1">${item[0]}</li>`;
+            });
+            xuciInfo += `</ul>`;
+            html += `<div class="mb-2"><div class="text-xs font-bold text-[#B83B2A] mb-1">📚 虚词用法：</div>${xuciInfo}</div>`;
+          }
+
+          // 3. 查实词库
+          let shiciInfo = '';
+          const targetShici = CLOUD_DATA.shici.find(item => item.字 === charBefore);
+          if (targetShici) {
+            shiciInfo += `<ul class="list-disc pl-4 space-y-1 text-xs text-gray-600">`;
+            targetShici.义项.forEach(item => {
+              shiciInfo += `<li><b>${item.义项}</b> 例：${item.例句}</li>`;
+            });
+            shiciInfo += `</ul>`;
+            html += `<div class="mb-2"><div class="text-xs font-bold text-[#B83B2A] mb-1">📖 实词义项（「${charBefore}」）：</div>${shiciInfo}</div>`;
+          }
+      }
+
+      return html;
+    }
+
+    // ==================== 5. 交互逻辑 ====================
+    window.startPractice = function() {
+      const raw = document.getElementById('rawInput').value.trim();
+      if (!raw) { alert('请先输入文言文'); return; }
+      currentRawClean = raw.replace(/[^\u4e00-\u9fa5]/g, '');
+      const result = runEngineFromRules(currentRawClean);
+      standardPunctMap = result.punctMap;
+      standardRuleExplain = result.ruleExplain;
+      userMarks = {}; 
+      renderPracticeView();
+      document.getElementById('viewTitle').innerText = '断句练习区';
+      document.getElementById('hintText').innerText = '点击字间空白处加标点，点击标点看规则解析';
+    };
+
+    window.showAnswer = function() {
+      if (!currentRawClean) { alert('请先开始练习'); return; }
+      renderAnswerView();
+      document.getElementById('viewTitle').innerText = '标准答案';
+      document.getElementById('hintText').innerText = '点击标点查看具体判定规则';
+    };
+
+    function renderPracticeView() {
+      const container = document.getElementById('outputContainer');
+      let html = '<div class="p-4 bg-[#FCF9F2] border border-[#E2D7C3] rounded-lg leading-loose text-xl tracking-wider">';
+      for (let i = 0; i < currentRawClean.length; i++) {
+        const char = currentRawClean[i];
+        const hasMark = userMarks[i] !== undefined;
+        const markClass = hasMark ? 'marked' : '';
+        const punctAttr = hasMark ? `data-punct="${userMarks[i]}"` : '';
+        html += `<span class="practice-char ${markClass}" ${punctAttr} data-index="${i}" onclick="handleCharClick(${i}, this)">${char}</span>`;
+        if (i < currentRawClean.length - 1) html += `<span class="text-gray-300 mx-0.5">|</span>`;
+      }
+      html += '</div>';
+      container.innerHTML = html;
+    }
+
+    window.handleCharClick = function(index, el) {
+      if (userMarks[index] !== undefined) {
+        showPunctAnalysis(index, userMarks[index]);
+        return;
+      }
+      const punct = prompt(`在「${currentRawClean[index]}」后添加标点：`, '，');
+      if (punct && ['，', '。', '？', '！', '；', '：'].includes(punct)) {
+        userMarks[index] = punct;
+        renderPracticeView();
+      }
+    };
+
+    window.showPunctAnalysis = function(index, punct) {
+      const isCorrect = standardPunctMap[index] === punct;
+      let statusHtml = isCorrect 
+        ? '<span class="text-green-600 font-bold">✅ 断句正确</span>' 
+        : `<span class="text-red-500 font-bold">❌ 断句有误（标准应为「${standardPunctMap[index] || '不断'}」）</span>`;
+
+      const analysisHtml = getAnalysis(index, punct);
+      document.getElementById('modalTitle').innerHTML = `「${currentRawClean[index]}」后标点解析 ${statusHtml}`;
+      document.getElementById('modalBody').innerHTML = analysisHtml;
+      document.getElementById('infoModal').style.display = 'flex';
+    };
+
+    function renderAnswerView() {
+      const container = document.getElementById('outputContainer');
+      let html = '<div class="p-4 bg-[#FCF9F2] border border-[#E2D7C3] rounded-lg leading-loose text-xl tracking-wider">';
+      for (let i = 0; i < currentRawClean.length; i++) {
+        const char = currentRawClean[i];
+        const punct = standardPunctMap[i];
+        html += `<span>${char}</span>`;
+        if (punct) {
+          html += `<span class="text-[#B83B2A] font-bold cursor-pointer hover:scale-125 inline-block mx-1 transition" onclick="showPunctAnalysis(${i}, '${punct}')">${punct}</span>`;
+        }
+      }
+      html += '</div>';
+      container.innerHTML = html;
+    }
+
+    window.closeModal = function(e) {
+      if (e && e.target !== document.getElementById('infoModal')) return;
+      document.getElementById('infoModal').style.display = 'none';
+    };
+
+    window.onload = function() {
+      document.getElementById('rawInput').value = "陈胜者阳城人也字涉吴广者阳夏人也字叔陈涉少时尝与人佣耕辍耕之垄上怅恨久之曰苟富贵无相忘佣者笑而应曰若为佣耕何富贵也陈涉太息曰嗟乎燕雀安知鸿鹄之志哉";
+    };
+  </script>
+</body>
+</html>
