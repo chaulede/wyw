@@ -96,8 +96,8 @@
       status.innerText = '连接 GitHub...';
       status.className = 'text-xs text-blue-500 font-medium animate-pulse';
 
-      // ⚠️【请替换这里为你的真实 GitHub 用户名和仓库名】
-      const base = 'https://raw.githubusercontent.com/YOUR_USER/YOUR_REPO/main/';
+      // ✅ 已经替换为你真实的 GitHub 路径
+      const base = 'https://raw.githubusercontent.com/chaulede/wyw/main/';
       
       try {
         const [dataShici, dataXuci, dataJushi, dataCz, dataGz, dataRules] = await Promise.all([
@@ -137,7 +137,7 @@
         console.error("拉取失败:", err);
         status.innerText = '❌ 拉取失败';
         status.className = 'text-xs text-red-500 font-medium';
-        alert('云端数据拉取失败！\n\n请检查：\n1. base链接是否改成了你自己的\n2. 是否用的是 raw.githubusercontent.com 链接\n3. 文件名是否完全一致（包括中文）');
+        alert('云端数据拉取失败！\n请检查网络或稍后重试。');
       } finally {
         btn.disabled = false;
       }
