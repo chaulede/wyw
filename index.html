@@ -13,10 +13,37 @@
   <style>
     body { font-family: 'Noto Serif SC', 'Songti SC', 'SimSun', serif; background-color: #F7F2E7; color: #2B2623; }
     .paper-card { background-color: #FCF9F2; border: 1px solid #E2D7C3; box-shadow: 0 4px 20px rgba(43, 38, 35, 0.05); }
-    .practice-char { display: inline-block; padding: 2px 4px; cursor: pointer; border-radius: 4px; transition: background 0.2s; position: relative; }
+    
+    /* 汉字与标点交互样式 */
+    .practice-char { 
+      display: inline-block; padding: 2px 4px; cursor: pointer; border-radius: 4px; 
+      transition: all 0.2s; position: relative; 
+    }
     .practice-char:hover { background: #EFE6D5; }
-    .practice-char.marked { border-bottom: 3px solid #B83B2A; margin-right: 8px; color: #B83B2A; font-weight: bold; }
-    .practice-char.marked::after { content: attr(data-punct); position: absolute; right: -12px; bottom: -5px; font-size: 0.8em; color: #B83B2A; }
+    .practice-char.active-target { background: #FDE8E8; border-bottom: 2px dashed #B83B2A; }
+    .practice-char.marked { border-bottom: 3px solid #B83B2A; margin-right: 12px; color: #2B2623; }
+    
+    /* 标点样式 */
+    .punct-symbol { color: #B83B2A; font-weight: bold; font-size: 1.2em; }
+    .punct-analysis-btn { cursor: pointer; display: inline-block; margin-left: 2px; }
+    .punct-analysis-btn:hover { transform: scale(1.2); }
+
+    /* 底部悬浮工具栏 */
+    #floatingToolbar {
+      position: fixed; bottom: -100px; left: 50%; transform: translateX(-50%);
+      background: #2B2623; padding: 12px 24px; border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3); z-index: 90;
+      display: flex; gap: 12px; align-items: center; transition: bottom 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    #floatingToolbar.show { bottom: 30px; }
+    .toolbar-btn {
+      color: #FCF9F2; background: #5C4938; border: none; border-radius: 6px;
+      padding: 8px 16px; font-size: 20px; cursor: pointer; transition: 0.2s;
+    }
+    .toolbar-btn:hover { background: #B83B2A; transform: translateY(-2px); }
+    .toolbar-btn.delete-btn { font-size: 14px; background: #8C3B3B; }
+
+    /* 弹窗 */
     #infoModal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100; align-items: center; justify-content: center; }
     .modal-content { background: #FCF9F2; border-radius: 12px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
     .rule-card { border-left: 4px solid #B83B2A; background: #FFF8EB; padding: 10px; border-radius: 4px; margin-bottom: 8px; }
@@ -28,98 +55,112 @@
     <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
       <div class="flex items-center gap-3">
         <span class="inline-flex items-center justify-center w-8 h-8 rounded bg-[#B83B2A] text-[#FCF9F2] font-bold text-lg">句</span>
-        <h1 class="text-xl font-bold tracking-wider text-[#2B2623]">文言文断句、翻译与解析工具</h1>
+        <h1 class="text-xl font-bold tracking-wider text-[#2B2623]" data-i18n="app_title">文言文断句、翻译与解析</h1>
       </div>
       <div class="flex items-center gap-2">
-        <button onclick="loadCloudData()" id="btnCloud" class="px-4 py-1.5 rounded-lg bg-[#5C4938] hover:bg-[#47382B] text-[#FCF9F2] text-sm font-medium transition shadow-sm">
-          ☁️ 加载云端题库
+        <button onclick="toggleLanguage()" class="px-3 py-1.5 rounded-lg border border-[#D4C5AE] text-[#5C4938] text-sm hover:bg-[#EFE6D5] font-bold">
+          <span id="langToggleText">EN</span>
         </button>
-        <span id="cloudStatus" class="text-xs text-orange-500 font-medium">未加载</span>
-        <button onclick="toggleConfig()" class="px-3 py-1.5 rounded-lg border border-[#D4C5AE] text-[#5C4938] text-sm hover:bg-[#EFE6D5]">⚙️ AI 设置</button>
+        <button onclick="loadCloudData()" id="btnCloud" class="px-4 py-1.5 rounded-lg bg-[#5C4938] hover:bg-[#47382B] text-[#FCF9F2] text-sm font-medium transition shadow-sm" data-i18n="load_data">
+          ☁️ 加载题库
+        </button>
+        <span id="cloudStatus" class="text-xs text-orange-500 font-medium" data-i18n="not_loaded">未加载</span>
+        <button onclick="toggleConfig()" class="px-3 py-1.5 rounded-lg border border-[#D4C5AE] text-[#5C4938] text-sm hover:bg-[#EFE6D5]" data-i18n="ai_settings">⚙️ AI 设置</button>
       </div>
     </div>
   </header>
 
   <main class="flex-1 max-w-7xl w-full mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-4">
     
-    <!-- 左侧：操作区 -->
+    <!-- 左侧操作区 -->
     <section class="lg:col-span-4 flex flex-col gap-4">
-      
-      <!-- AI 设置面板 -->
       <div id="aiConfigPanel" class="hidden paper-card rounded-xl p-4 flex-col gap-2">
-        <h2 class="font-bold text-sm text-[#5C4938]">DeepSeek 翻译设置</h2>
-        <input id="apiKeyInput" type="password" placeholder="sk-..." class="w-full p-2 rounded border border-[#DCD0BC] bg-[#F7F2E7] text-sm">
+        <h2 class="font-bold text-sm text-[#5C4938]" data-i18n="deepseek_setup">DeepSeek API 设置</h2>
+        <input id="apiKeyInput" type="password" autocomplete="off" placeholder="sk-..." class="w-full p-2 rounded border border-[#DCD0BC] bg-[#F7F2E7] text-sm">
+        <p class="text-xs text-gray-500">API Key 仅保存在当前浏览器会话中；不要在公共电脑输入。正式公开部署请改用后端代理，避免密钥暴露。</p>
         <select id="modelSelect" class="w-full p-2 rounded border border-[#DCD0BC] bg-[#F7F2E7] text-sm">
           <option value="deepseek-chat">deepseek-chat (V3 快速版)</option>
           <option value="deepseek-reasoner">deepseek-reasoner (R1 思考版)</option>
         </select>
-        <button onclick="saveAIConfig()" class="w-full py-1.5 rounded bg-[#5C4938] text-[#FCF9F2] text-sm hover:bg-[#47382B]">保存设置</button>
+        <button onclick="saveAIConfig()" class="w-full py-1.5 rounded bg-[#5C4938] text-[#FCF9F2] text-sm hover:bg-[#47382B]" data-i18n="save">保存设置</button>
       </div>
 
-      <!-- 文件上传与文本输入 -->
       <div class="paper-card rounded-xl p-4 flex flex-col gap-3">
-        <h2 class="font-bold text-sm text-[#5C4938]">一、输入或上传文本</h2>
-        
+        <h2 class="font-bold text-sm text-[#5C4938]" data-i18n="input_upload">一、输入或上传文本</h2>
         <div class="flex flex-wrap gap-2">
            <label class="cursor-pointer px-3 py-1.5 rounded bg-[#B83B2A] text-[#FCF9F2] text-xs hover:bg-[#9E3021] transition">
-              📁 上传文件 (TXT/Word/PDF/图片)
+              <span data-i18n="upload_file">📁 上传文件</span>
               <input type="file" id="fileInput" accept=".txt,.docx,.pdf,image/*" class="hidden" onchange="handleFileUpload(event)">
            </label>
-           <button onclick="toggleScript()" class="px-3 py-1.5 rounded border border-[#D4C5AE] text-xs text-[#5C4938] hover:bg-[#EFE6D5]">🔄 繁简转换</button>
+           <button onclick="toggleScript()" class="px-3 py-1.5 rounded border border-[#D4C5AE] text-xs text-[#5C4938] hover:bg-[#EFE6D5]" data-i18n="converter">🔄 繁简转换</button>
         </div>
         <div id="statusBar" class="hidden text-xs text-blue-600 bg-blue-50 p-2 rounded">处理中...</div>
-
-        <textarea id="rawInput" rows="6" placeholder="请粘贴无标点文言文，或上传文件..." class="w-full p-3 rounded bg-[#F7F2E7] border border-[#DCD0BC] text-sm leading-relaxed resize-none"></textarea>
+        <textarea id="rawInput" rows="6" placeholder="请粘贴无标点文言文..." class="w-full p-3 rounded bg-[#F7F2E7] border border-[#DCD0BC] text-sm leading-relaxed resize-none" data-i18n="input_placeholder"></textarea>
         
-        <button onclick="startPractice()" class="w-full py-2 rounded-lg bg-[#B83B2A] hover:bg-[#9E3021] text-[#FCF9F2] font-bold shadow-sm transition">
-          ✏️ 生成断句练习
-        </button>
-        <button onclick="showAnswer()" class="w-full py-2 rounded-lg border border-[#B83B2A] text-[#B83B2A] font-bold hover:bg-[#FFF8EB] transition">
-          👁️ 查看规则生成的答案
+        <div class="grid grid-cols-2 gap-2">
+          <button onclick="startPractice()" class="w-full py-2 rounded-lg bg-[#B83B2A] hover:bg-[#9E3021] text-[#FCF9F2] font-bold shadow-sm transition text-sm" data-i18n="gen_practice">
+            ✏️ 生成练习
+          </button>
+          <button onclick="showLocalAnswer()" class="w-full py-2 rounded-lg border border-[#B83B2A] text-[#B83B2A] font-bold hover:bg-[#FFF8EB] transition text-sm" data-i18n="rule_answer">
+            👁️ 规则答案
+          </button>
+        </div>
+        <button onclick="showAIAnswer()" class="w-full py-2 rounded-lg bg-gradient-to-r from-[#8A5A19] to-[#B83B2A] text-[#FCF9F2] font-bold shadow-md transition text-sm flex items-center justify-center gap-2">
+          <span data-i18n="ai_answer">✨ AI 智能断句与解析</span>
         </button>
       </div>
 
-      <!-- 题库选择区 -->
       <div class="paper-card rounded-xl p-4 flex flex-col gap-3">
-         <h2 class="font-bold text-sm text-[#5C4938]">二、标准原文（云端题库）</h2>
+         <h2 class="font-bold text-sm text-[#5C4938]" data-i18n="standard_text">二、标准原文（云端题库）</h2>
          <div class="flex gap-2">
            <select id="textSelect" class="flex-1 p-2 rounded bg-[#F7F2E7] border border-[#DCD0BC] text-sm">
-             <option value="">-- 请先点击右上角加载题库 --</option>
+             <option value="" data-i18n="select_text">-- 请先加载题库 --</option>
            </select>
-           <button onclick="showStandardText()" class="px-3 py-2 rounded bg-[#5C4938] text-[#FCF9F2] text-sm hover:bg-[#47382B]">查看</button>
+           <button onclick="showStandardText()" class="px-3 py-2 rounded bg-[#5C4938] text-[#FCF9F2] text-sm hover:bg-[#47382B]" data-i18n="view">查看</button>
         </div>
       </div>
-
     </section>
 
-    <!-- 右侧：展示区 -->
+    <!-- 右侧展示区 -->
     <section class="lg:col-span-8 flex flex-col">
       <div class="paper-card rounded-xl p-6 flex-1 flex flex-col relative">
         <div class="flex justify-between items-center pb-2 mb-4 border-b border-[#E6DCCB]">
-          <h2 id="viewTitle" class="font-bold text-lg text-[#5C4938]">显示区</h2>
-          <span class="text-xs text-gray-500" id="hintText">等待操作...</span>
+          <h2 id="viewTitle" class="font-bold text-lg text-[#5C4938]" data-i18n="display_area">显示区</h2>
+          <span id="hintText" class="text-xs text-gray-500" data-i18n="wait_action">等待操作...</span>
         </div>
         
-        <!-- 文本展示容器 -->
         <div id="outputContainer" class="flex-1 overflow-y-auto text-xl leading-loose tracking-wide mb-4">
-          <div class="text-center text-[#9A8C7D] py-16 text-base">请从左侧输入文本并开始练习，或选择标准原文。</div>
+          <div class="text-center text-[#9A8C7D] py-16 text-base" data-i18n="empty_hint">请在左侧输入文本并开始练习。</div>
         </div>
 
-        <!-- DeepSeek 翻译区 -->
-        <div id="translationArea" class="hidden mt-4 pt-4 border-t border-[#E6DCCB]">
+        <div id="aiResultArea" class="hidden mt-4 pt-4 border-t border-[#E6DCCB]">
            <div class="flex justify-between items-center mb-2">
-              <h3 class="font-bold text-[#5C4938]">🤖 DeepSeek 逐句翻译</h3>
-              <button onclick="startTranslate()" class="px-3 py-1 bg-[#B83B2A] text-[#FCF9F2] text-xs rounded hover:bg-[#9E3021]">开始翻译</button>
+              <h3 class="font-bold text-[#5C4938] flex items-center gap-2">
+                <span id="aiResultTitle" data-i18n="ai_parse_title">🤖 智能解析区</span>
+                <span id="aiStatus" class="text-xs font-normal text-blue-500"></span>
+              </h3>
+              <button onclick="startTranslate()" id="btnTranslate" class="px-3 py-1 bg-[#5C4938] text-[#FCF9F2] text-xs rounded hover:bg-[#47382B]" data-i18n="translate">全文翻译</button>
            </div>
-           <div id="translationResult" class="text-sm leading-relaxed text-[#4A443F] bg-[#FFF8EB] p-4 rounded border border-[#E2D7C3] min-h-[100px]">
-              等待翻译...
+           <div id="aiResultContent" class="text-sm leading-relaxed text-[#4A443F] bg-white p-4 rounded border border-[#E2D7C3] min-h-[150px] whitespace-pre-wrap" data-i18n="waiting">
+              等待操作...
            </div>
         </div>
       </div>
     </section>
   </main>
 
-  <!-- 弹窗 -->
+  <!-- 底部悬浮工具栏 -->
+  <div id="floatingToolbar">
+    <span id="toolbarTargetText" class="text-white text-sm mr-2 border-r border-gray-500 pr-3" data-i18n="after_char">在「」后：</span>
+    <button class="toolbar-btn" onclick="insertPunct('，')">，</button>
+    <button class="toolbar-btn" onclick="insertPunct('。')">。</button>
+    <button class="toolbar-btn" onclick="insertPunct('？')">？</button>
+    <button class="toolbar-btn" onclick="insertPunct('！')">！</button>
+    <button class="toolbar-btn" onclick="insertPunct('；')">；</button>
+    <button class="toolbar-btn delete-btn" onclick="insertPunct('')" data-i18n="delete">删除</button>
+  </div>
+
+  <!-- 解析弹窗 -->
   <div id="infoModal" onclick="closeModal(event)">
     <div class="modal-content" onclick="event.stopPropagation()">
       <div class="flex justify-between items-center mb-4 border-b border-[#E2D7C3] pb-2">
@@ -131,416 +172,487 @@
   </div>
 
   <script>
-    // ==================== 全局状态 ====================
+    // ==================== 国际化 (i18n) 字典 ====================
+    const i18n = {
+      zh: {
+        app_title: "文言文断句、翻译与解析",
+        load_data: "☁️ 加载题库",
+        not_loaded: "未加载",
+        ai_settings: "⚙️ AI 设置",
+        deepseek_setup: "DeepSeek API 设置",
+        save: "保存设置",
+        input_upload: "一、输入或上传文本",
+        upload_file: "📁 上传文件",
+        converter: "🔄 繁简转换",
+        input_placeholder: "请粘贴无标点文言文...",
+        gen_practice: "✏️ 生成练习",
+        rule_answer: "👁️ 规则答案",
+        ai_answer: "✨ AI 智能断句与解析",
+        standard_text: "二、标准原文（云端题库）",
+        select_text: "-- 请先加载题库 --",
+        view: "查看",
+        display_area: "显示区",
+        wait_action: "等待操作...",
+        empty_hint: "请在左侧输入文本并开始练习。",
+        ai_parse_title: "🤖 智能解析区",
+        translate: "全文翻译",
+        waiting: "等待操作...",
+        after_char: "在「」后：",
+        delete: "删除",
+        // 动态提示
+        loaded: "✅ 已加载",
+        load_fail: "❌ 失败",
+        processing: "处理中...",
+        parsing: "正在解析文件...",
+        ocr_scan: "识别扫描件中...",
+        ocr_img: "识别图片中...",
+        practice_title: "✏️ 断句练习",
+        practice_hint: "点击汉字，在下方选择插入标点",
+        std_title: "📖 原文：",
+        local_ans_title: "👁️ 规则生成的答案",
+        ai_gen_title: "✨ AI 智能解析",
+        ai_generating: "AI 正在通读全文、分析语境并尝试断句...",
+        ai_parse_sub: "✨ 段落解析",
+        ai_wait: "等待模型分析...",
+        ai_loading: "生成中...",
+        ai_done: "生成完毕",
+        ai_fail: "失败",
+        translate_title: "🤖 全文意译",
+        translate_loading: "DeepSeek 正在全文翻译...",
+        alert_key: "请先点击右上角 ⚙️ AI 设置填入 Key",
+        alert_input: "请先输入文本",
+        alert_select: "请选择课文",
+        rule_prefix: "📏 规则：",
+        xuci_prefix: "📚 虚词用法：",
+        shici_prefix: "📖 实词义项：",
+        correct: "✅ 正确",
+        wrong: "❌ 有误（标准为「」）"
+      },
+      en: {
+        app_title: "Classical Chinese Punctuation & Translation",
+        load_data: "☁️ Load Database",
+        not_loaded: "Not Loaded",
+        ai_settings: "⚙️ AI Settings",
+        deepseek_setup: "DeepSeek API Setup",
+        save: "Save Settings",
+        input_upload: "1. Input or Upload Text",
+        upload_file: "📁 Upload File",
+        converter: "🔄 Trad/Simp Convert",
+        input_placeholder: "Paste unpunctuated text here...",
+        gen_practice: "✏️ Generate Practice",
+        rule_answer: "👁️ Rule Answer",
+        ai_answer: "✨ AI Smart Punctuation",
+        standard_text: "2. Standard Text (Cloud)",
+        select_text: "-- Load database first --",
+        view: "View",
+        display_area: "Display Area",
+        wait_action: "Waiting for action...",
+        empty_hint: "Please input text on the left and start practice.",
+        ai_parse_title: "🤖 AI Analysis Area",
+        translate: "Translate",
+        waiting: "Waiting...",
+        after_char: "After「」: ",
+        delete: "Delete",
+        // 动态提示
+        loaded: "✅ Loaded",
+        load_fail: "❌ Failed",
+        processing: "Processing...",
+        parsing: "Parsing file...",
+        ocr_scan: "Scanning PDF...",
+        ocr_img: "Scanning image...",
+        practice_title: "✏️ Punctuation Practice",
+        practice_hint: "Click a character, then select punctuation below",
+        std_title: "📖 Text: ",
+        local_ans_title: "👁️ Rule-Generated Answer",
+        ai_gen_title: "✨ AI Smart Analysis",
+        ai_generating: "AI is reading and punctuating the text...",
+        ai_parse_sub: "✨ Sentence Analysis",
+        ai_wait: "Waiting for AI...",
+        ai_loading: "Generating...",
+        ai_done: "Done",
+        ai_fail: "Failed",
+        translate_title: "🤖 Full Translation",
+        translate_loading: "DeepSeek is translating...",
+        alert_key: "Please fill in API Key in ⚙️ AI Settings",
+        alert_input: "Please input text first",
+        alert_select: "Please select a text",
+        rule_prefix: "📏 Rule: ",
+        xuci_prefix: "📚 Function Word: ",
+        shici_prefix: "📖 Content Word: ",
+        correct: "✅ Correct",
+        wrong: "❌ Wrong (Standard: )"
+      }
+    };
+
+    let currentLang = localStorage.getItem('app_lang') === 'en' ? 'en' : 'zh';
+
+    window.toggleLanguage = function() {
+      currentLang = currentLang === 'zh' ? 'en' : 'zh';
+      localStorage.setItem('app_lang', currentLang);
+      applyLanguage();
+    };
+
+    function applyLanguage() {
+      document.getElementById('langToggleText').textContent = currentLang === 'zh' ? 'EN' : '中';
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        const value = i18n[currentLang] && i18n[currentLang][key];
+        if (typeof value !== 'string') return;
+        if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') el.placeholder = value;
+        else el.textContent = value;
+      });
+    }
+
+    // ==================== 初始化与状态 ====================
     if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     let t2sConverter = null, s2tConverter = null;
-    if (window.OpenCC) {
-      t2sConverter = OpenCC.Converter({ from: 'tw', to: 'cn' });
-      s2tConverter = OpenCC.Converter({ from: 'cn', to: 'tw' });
+    if (window.OpenCC && typeof OpenCC.Converter === 'function') {
+      try {
+        t2sConverter = OpenCC.Converter({ from: 'tw', to: 'cn' });
+        s2tConverter = OpenCC.Converter({ from: 'cn', to: 'tw' });
+      } catch (err) { console.warn('OpenCC 初始化失败：', err); }
     }
 
     let CLOUD_DATA = { shici: [], xuci: [], jushi: [], texts: [], rules: {} };
     let isDataLoaded = false;
-    let currentMode = ''; // 'standard_view', 'practice', 'upload'
+    let currentMode = ''; 
     let currentRawClean = ''; 
     let standardPunctMap = {}; 
     let standardRuleExplain = {}; 
     let userMarks = {}; 
-    let isTrad = false; // 是否繁体
+    let isTrad = false; 
+    let activeCharIndex = -1;
+    let aiPunctuatedText = '';
+    let currentSourceText = '';
 
-    // ==================== 1. DeepSeek 设置 ====================
+    function escapeHTML(value) {
+      return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+    }
+    // 删除标点和空白，但保留英文、数字及其他字符。
+    function stripPunctuation(value) { return String(value ?? '').replace(/[\s\p{P}\p{S}]/gu, ''); }
+    function extractJSON(content) {
+      const cleaned = String(content ?? '').replace(/^\uFEFF/, '').replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+      try { return JSON.parse(cleaned); } catch (_) {
+        const a = cleaned.indexOf('{'), b = cleaned.lastIndexOf('}');
+        if (a >= 0 && b > a) return JSON.parse(cleaned.slice(a, b + 1));
+        throw new Error('AI 返回内容不是有效的 JSON，请重试。');
+      }
+    }
+    async function callDeepSeek(messages, temperature = 0.1) {
+      const key = sessionStorage.getItem('deepseek_key') || localStorage.getItem('deepseek_key');
+      if (!key) throw new Error(i18n[currentLang].alert_key);
+      const res = await fetch('https://api.deepseek.com/chat/completions', {
+        method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${key}`},
+        body:JSON.stringify({model:localStorage.getItem('deepseek_model') || 'deepseek-chat',messages,temperature})
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error?.message || `API 请求失败（HTTP ${res.status}）`);
+      const answer = data.choices?.[0]?.message?.content;
+      if (typeof answer !== 'string' || !answer.trim()) throw new Error('AI 没有返回有效内容。');
+      return answer;
+    }
+
+    // ==================== 配置与题库加载 ====================
     window.toggleConfig = function() {
       const panel = document.getElementById('aiConfigPanel');
       panel.classList.toggle('hidden');
       panel.classList.toggle('flex');
     };
     window.saveAIConfig = function() {
-      const key = document.getElementById('apiKeyInput').value.trim();
-      const model = document.getElementById('modelSelect').value;
-      localStorage.setItem('deepseek_key', key);
-      localStorage.setItem('deepseek_model', model);
-      alert('AI 设置已保存到本地浏览器！');
+      sessionStorage.setItem('deepseek_key', document.getElementById('apiKeyInput').value.trim());
+      localStorage.setItem('deepseek_model', document.getElementById('modelSelect').value);
+      alert(currentLang === 'zh' ? 'AI 设置已保存！' : 'AI settings saved!');
       toggleConfig();
     };
-    // 初始化读取本地设置
-    document.getElementById('apiKeyInput').value = localStorage.getItem('deepseek_key') || '';
+    document.getElementById('apiKeyInput').value = sessionStorage.getItem('deepseek_key') || localStorage.getItem('deepseek_key') || '';
     document.getElementById('modelSelect').value = localStorage.getItem('deepseek_model') || 'deepseek-chat';
 
-    // ==================== 2. 加载云端题库 ====================
     window.loadCloudData = async function() {
-      const btn = document.getElementById('btnCloud');
-      const status = document.getElementById('cloudStatus');
-      btn.disabled = true;
-      status.innerText = '连接 GitHub...';
-      
       const base = 'https://raw.githubusercontent.com/chaulede/wyw/main/';
-      
+      const statusEl = document.getElementById('cloudStatus');
+      const button = document.getElementById('btnCloud');
+      button.disabled = true;
+      statusEl.textContent = i18n[currentLang].processing;
       try {
-        const [dataShici, dataXuci, dataJushi, dataCz, dataGz, dataRules] = await Promise.all([
-          fetch(base + '实词_合集.json').then(r => r.json()),
-          fetch(base + '虚词_合集.json').then(r => r.json()),
-          fetch(base + '句式_合集.json').then(r => r.json()),
-          fetch(base + 'cz.json').then(r => r.json()),
-          fetch(base + 'gz.json').then(r => r.json()),
-          fetch(base + '古文断句标点规则库.json').then(r => r.json()).catch(() => ({})) 
-        ]);
-
-        CLOUD_DATA.shici = dataShici;
-        CLOUD_DATA.xuci = dataXuci;
-        CLOUD_DATA.jushi = dataJushi;
-        CLOUD_DATA.rules = dataRules;
-
-        const extractTexts = (jsonObj) => {
-           if (jsonObj['文言文文章']) return jsonObj['文言文文章'].map(item => ({ title: item['篇名'], content: item['正文'] }));
-           return [];
+        const getJSON = async (file, optional=false) => {
+          const r = await fetch(base + file, {cache:'no-cache'});
+          if (!r.ok) { if (optional) return {}; throw new Error(`${file} 加载失败（HTTP ${r.status}）`); }
+          return r.json();
         };
-        CLOUD_DATA.texts = [...extractTexts(dataCz), ...extractTexts(dataGz)];
-
+        const [shici,xuci,jushi,cz,gz,rules] = await Promise.all([
+          getJSON('实词_合集.json'), getJSON('虚词_合集.json'), getJSON('句式_合集.json'),
+          getJSON('cz.json'), getJSON('gz.json'), getJSON('古文断句标点规则库.json',true)
+        ]);
+        const extract = obj => Array.isArray(obj?.['文言文文章']) ? obj['文言文文章'].map(x=>({title:String(x?.['篇名'] ?? '未命名课文'),content:String(x?.['正文'] ?? '')})) : [];
+        CLOUD_DATA = {shici:Array.isArray(shici)?shici:[],xuci:Array.isArray(xuci)?xuci:[],jushi:Array.isArray(jushi)?jushi:[],rules:rules&&typeof rules==='object'?rules:{},texts:[...extract(cz),...extract(gz)]};
         isDataLoaded = true;
-        status.innerText = '✅ 题库已加载';
-        status.className = 'text-xs text-green-600 font-medium';
-        
+        statusEl.textContent = i18n[currentLang].loaded;
+        statusEl.className = 'text-xs text-green-600 font-medium';
         const sel = document.getElementById('textSelect');
-        sel.innerHTML = '<option value="">-- 请选择要查看的课文 --</option>';
-        CLOUD_DATA.texts.forEach((t, idx) => {
-          sel.innerHTML += `<option value="${idx}">${t.title}</option>`;
-        });
-
-      } catch (err) {
-        status.innerText = '❌ 加载失败';
-        status.className = 'text-xs text-red-500 font-medium';
-      } finally {
-        btn.disabled = false;
-      }
+        sel.replaceChildren();
+        const first = document.createElement('option'); first.value=''; first.textContent=i18n[currentLang].select_text; sel.appendChild(first);
+        CLOUD_DATA.texts.forEach((t,i)=>{const o=document.createElement('option');o.value=String(i);o.textContent=t.title;sel.appendChild(o);});
+      } catch(err) {
+        isDataLoaded = false; statusEl.textContent = `${i18n[currentLang].load_fail}：${err.message}`;
+        statusEl.className = 'text-xs text-red-600 font-medium'; console.error(err);
+      } finally { button.disabled = false; }
     };
 
-    // ==================== 3. 文件上传与 OCR 解析 ====================
+    // ==================== 文件上传与 OCR ====================
     window.handleFileUpload = async function(event) {
-      const file = event.target.files[0];
-      if (!file) return;
+      const file = event.target.files?.[0]; if (!file) return;
       event.target.value = '';
-      const name = file.name.toLowerCase();
-      const statusBar = document.getElementById('statusBar');
-      
-      statusBar.classList.remove('hidden');
-      statusBar.innerText = '正在解析文件，请稍候...';
-
+      const status = document.getElementById('statusBar'); status.classList.remove('hidden'); status.textContent=i18n[currentLang].parsing;
       try {
-        let text = '';
-        if (name.endsWith('.txt')) {
-          text = await file.text();
-        } else if (name.endsWith('.docx')) {
-          const arrayBuffer = await file.arrayBuffer();
-          const result = await mammoth.extractRawText({ arrayBuffer });
-          text = result.value;
+        let text=''; const name=file.name.toLowerCase();
+        if (name.endsWith('.txt')) text=await file.text();
+        else if (name.endsWith('.docx')) {
+          if (!window.mammoth) throw new Error('DOCX 解析组件未能加载。');
+          text=(await mammoth.extractRawText({arrayBuffer:await file.arrayBuffer()})).value || '';
         } else if (name.endsWith('.pdf')) {
-          const arrayBuffer = await file.arrayBuffer();
-          const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-          let fullText = '';
-          for (let i = 1; i <= pdf.numPages; i++) {
-            const page = await pdf.getPage(i);
-            const content = await page.getTextContent();
-            fullText += content.items.map(item => item.str).join('') + '\n';
+          if (!window.pdfjsLib) throw new Error('PDF 解析组件未能加载。');
+          const pdf=await pdfjsLib.getDocument({data:await file.arrayBuffer()}).promise, pages=[];
+          for(let n=1;n<=pdf.numPages;n++) {
+            const page=await pdf.getPage(n), content=await page.getTextContent(); let line='', prevY=null;
+            for(const item of content.items) {
+              const y=item.transform?.[5];
+              if(prevY!==null && typeof y==='number' && Math.abs(y-prevY)>3) line+='\n';
+              line+=item.str || ''; if(item.hasEOL) line+='\n';
+              if(typeof y==='number') prevY=y;
+            }
+            pages.push(line.trim());
           }
-          const chineseChars = fullText.replace(/[^\u4e00-\u9fa5]/g, '');
-          if (chineseChars.length >= 10) {
-             text = fullText.trim();
-          } else {
-             statusBar.innerText = '检测到扫描版 PDF，正在调用 OCR 识别...';
-             let scannedText = '';
-             for (let i = 1; i <= pdf.numPages; i++) {
-               const page = await pdf.getPage(i);
-               const viewport = page.getViewport({ scale: 2.0 });
-               const canvas = document.createElement('canvas');
-               const ctx = canvas.getContext('2d');
-               canvas.width = viewport.width;
-               canvas.height = viewport.height;
-               await page.render({ canvasContext: ctx, viewport }).promise;
-               const ocrRes = await runOcr(canvas);
-               scannedText += ocrRes + '\n';
-             }
-             text = scannedText.trim();
+          const extracted=pages.join('\n\n');
+          if(stripPunctuation(extracted).length>=10) text=extracted;
+          else {
+            if(!window.Tesseract) throw new Error('OCR 组件未能加载。');
+            status.textContent=i18n[currentLang].ocr_scan;
+            const worker=await Tesseract.createWorker('chi_sim+chi_tra');
+            try {
+              const scanned=[];
+              for(let n=1;n<=pdf.numPages;n++) {
+                const page=await pdf.getPage(n), viewport=page.getViewport({scale:2}), canvas=document.createElement('canvas');
+                canvas.width=Math.ceil(viewport.width); canvas.height=Math.ceil(viewport.height);
+                await page.render({canvasContext:canvas.getContext('2d'),viewport}).promise;
+                scanned.push((await worker.recognize(canvas)).data.text || '');
+              }
+              text=scanned.join('\n\n');
+            } finally { await worker.terminate(); }
           }
-        } else if (file.type.startsWith('image/')) {
-          statusBar.innerText = '正在识别图片文字...';
-          text = await runOcr(file);
-        }
-
-        document.getElementById('rawInput').value = text;
-        // 自动去除标点并开启练习
-        startPracticeFromUploadedText(text);
-
-      } catch (err) {
-        alert('文件解析失败: ' + err.message);
-      } finally {
-        statusBar.classList.add('hidden');
-      }
+        } else if(file.type.startsWith('image/')) {
+          if(!window.Tesseract) throw new Error('OCR 组件未能加载。');
+          status.textContent=i18n[currentLang].ocr_img;
+          const worker=await Tesseract.createWorker('chi_sim+chi_tra');
+          try { text=(await worker.recognize(file)).data.text || ''; } finally { await worker.terminate(); }
+        } else throw new Error('暂不支持此文件格式，请上传 TXT、DOCX、PDF 或图片。');
+        document.getElementById('rawInput').value=text.trim();
+        if(!text.trim()) throw new Error('没有从文件中提取到文字。');
+        startPractice();
+      } catch(err) { console.error(err); alert(`文件处理失败：${err.message}`); }
+      finally { status.classList.add('hidden'); }
     };
 
-    async function runOcr(imageSource) {
-      const worker = await Tesseract.createWorker('chi_sim+chi_tra');
-      const { data: { text } } = await worker.recognize(imageSource);
-      await worker.terminate();
-      return text.replace(/[ \t]+/g, '').replace(/\n+/g, '').trim();
-    }
-
-    function startPracticeFromUploadedText(text) {
-      document.getElementById('rawInput').value = text;
-      startPractice();
-    }
-
-    // ==================== 4. 繁简转换 ====================
     window.toggleScript = function() {
-      const ta = document.getElementById('rawInput');
-      if (!ta.value.trim()) return;
-      if (isTrad) {
-        ta.value = t2sConverter(ta.value);
-        isTrad = false;
-      } else {
-        ta.value = s2tConverter(ta.value);
-        isTrad = true;
-      }
+      const ta=document.getElementById('rawInput'); if(!ta.value.trim()) return;
+      if(!t2sConverter || !s2tConverter) { alert(currentLang==='zh'?'繁简转换组件未能加载，请检查网络后刷新页面。':'Conversion library did not load.'); return; }
+      const hasTraditional=/[體國學門風書車馬魚鳥龍後發裡臺灣這個為來說時點]/.test(ta.value);
+      try { ta.value=hasTraditional?t2sConverter(ta.value):s2tConverter(ta.value); isTrad=!hasTraditional; }
+      catch(err) { alert(`转换失败：${err.message}`); }
     };
 
-    // ==================== 5. 核心逻辑：练习与规则引擎 ====================
+    // ==================== 核心练习逻辑 ====================
     window.showStandardText = function() {
       const sel = document.getElementById('textSelect');
-      const idx = sel.value;
-      if (idx === "") { alert('请先选择课文'); return; }
-      
-      const textObj = CLOUD_DATA.texts[idx];
-      currentMode = 'standard_view';
-      
-      document.getElementById('viewTitle').innerText = `📖 原文查看：${textObj.title}`;
-      document.getElementById('hintText').innerText = '标准原文，不可修改';
-      
-      const container = document.getElementById('outputContainer');
-      container.innerHTML = `<div class="p-6 bg-white border border-[#E2D7C3] rounded-lg shadow-sm leading-loose text-xl tracking-wider" style="text-indent: 2em;">
-        ${textObj.content.replace(/\n/g, '<br><br>')}
-      </div>`;
-      
-      document.getElementById('translationArea').classList.add('hidden');
+      if (sel.value === "") { alert(i18n[currentLang].alert_select); return; }
+      const textObj = CLOUD_DATA.texts[sel.value];
+      currentMode = 'standard_view'; currentSourceText = textObj.content;
+      document.getElementById('viewTitle').textContent = `${i18n[currentLang].std_title}${textObj.title}`;
+      const card=document.createElement('div'); card.className='p-6 bg-white border border-[#E2D7C3] rounded-lg leading-loose text-xl tracking-wider';
+      card.style.textIndent='2em'; card.style.whiteSpace='pre-wrap'; card.textContent=textObj.content;
+      document.getElementById('outputContainer').replaceChildren(card);
+      document.getElementById('aiResultArea').classList.remove('hidden');
+      document.getElementById('btnTranslate').classList.remove('hidden');
+      document.getElementById('aiResultContent').textContent=i18n[currentLang].waiting;
+      document.getElementById('aiStatus').textContent=''; hideToolbar();
     };
 
     window.startPractice = function() {
       const raw = document.getElementById('rawInput').value.trim();
-      if (!raw) { alert('请先输入文言文'); return; }
-      
-      currentRawClean = raw.replace(/[^\u4e00-\u9fa5]/g, '');
+      if (!raw) { alert(i18n[currentLang].alert_input); return; }
+      currentSourceText = raw;
+      currentRawClean = stripPunctuation(raw);
+      if (!currentRawClean) { alert(i18n[currentLang].alert_input); return; }
+      aiPunctuatedText = '';
       currentMode = 'practice';
       userMarks = {}; 
-      
+      activeCharIndex = -1;
+
       const result = runEngineFromRules(currentRawClean);
       standardPunctMap = result.punctMap;
       standardRuleExplain = result.ruleExplain;
 
       renderPracticeView();
-      document.getElementById('viewTitle').innerText = '✏️ 断句练习区';
-      document.getElementById('hintText').innerText = '点击汉字之间的空白添加标点，点击已有标点查看解析';
-      document.getElementById('translationArea').classList.remove('hidden');
-      document.getElementById('translationResult').innerText = '点击上方“开始翻译”调用 AI...';
-    };
+      document.getElementById('viewTitle').innerText = i18n[currentLang].practice_title;
+      document.getElementById('hintText').innerText = i18n[currentLang].practice_hint;
+      
+      document.getElementById('aiResultArea').classList.remove('hidden');
+      document.getElementById('aiResultTitle').innerText = i18n[currentLang].ai_parse_title;
+      document.getElementById('aiResultContent').innerText = i18n[currentLang].waiting;
+      document.getElementById('aiStatus').textContent = '';
+      document.getElementById('btnTranslate').classList.remove('hidden');
+    }; 
 
     function runEngineFromRules(clean) {
-      const n = clean.length;
-      const punctMap = {};
-      const ruleExplain = {}; 
-
-      if (isDataLoaded && CLOUD_DATA.rules.sentence_end) {
-          const particles = CLOUD_DATA.rules.sentence_end.particles;
-          for (let i = 0; i < n; i++) {
-             const ch = clean[i];
-             const pRule = particles.find(p => p.char === ch);
-             if (pRule) {
-                 let skip = false;
-                 if (pRule.exceptions) {
-                     pRule.exceptions.forEach(ex => {
-                         if (ex.context.includes('者') && clean[i+1] === '者') skip = true;
-                         if (ex.context.includes('则') && clean[i+1] === '则') { punctMap[i] = '，'; skip = true; }
-                     });
-                 }
-                 if (!skip) {
-                     punctMap[i] = pRule.punct || '。';
-                     ruleExplain[i] = pRule;
-                 }
-             }
-          }
-      }
-
-      if (isDataLoaded && CLOUD_DATA.rules.fixed_structures) {
-          const structs = CLOUD_DATA.rules.fixed_structures;
-          structs.forEach(st => {
-              if (!st.regex) return;
-              try {
-                  const re = new RegExp(st.regex, 'g');
-                  let match;
-                  while ((match = re.exec(clean)) !== null) {
-                      const start = match.index;
-                      const end = start + match[0].length - 1;
-                      if (st.mark_after && !punctMap[end]) {
-                          punctMap[end] = st.mark_after;
-                          ruleExplain[end] = st;
-                      }
-                  }
-              } catch(e) {}
-          });
-      }
-
-      if (!punctMap[n-1]) {
-          punctMap[n-1] = '。';
-          ruleExplain[n-1] = { label: '句意结束', note: '全句语义完整。' };
-      }
-
-      return { punctMap, ruleExplain };
-    }
-
-    // ==================== 6. 渲染与交互 ====================
-    function renderPracticeView() {
-      const container = document.getElementById('outputContainer');
-      let html = '<div class="p-6 bg-white border border-[#E2D7C3] rounded-lg leading-loose text-xl tracking-wider">';
-      for (let i = 0; i < currentRawClean.length; i++) {
-        const char = currentRawClean[i];
-        const hasMark = userMarks[i] !== undefined;
-        const markClass = hasMark ? 'marked' : '';
-        const punctAttr = hasMark ? `data-punct="${userMarks[i]}"` : '';
-        html += `<span class="practice-char ${markClass}" ${punctAttr} data-index="${i}" onclick="handleCharClick(${i})">${char}</span>`;
-        if (i < currentRawClean.length - 1) html += `<span class="text-gray-300 mx-0.5">|</span>`;
-      }
-      html += '</div>';
-      container.innerHTML = html;
-    }
-
-    window.handleCharClick = function(index) {
-      if (userMarks[index] !== undefined) {
-        showPunctAnalysis(index, userMarks[index]);
-        return;
-      }
-      const punct = prompt(`在「${currentRawClean[index]}」后添加标点：`, '，');
-      if (punct && ['，', '。', '？', '！', '；'].includes(punct)) {
-        userMarks[index] = punct;
-        renderPracticeView();
-      }
-    };
-
-    window.showAnswer = function() {
-      if (currentMode !== 'practice' || !currentRawClean) { alert('请先生成练习'); return; }
-      document.getElementById('viewTitle').innerText = '👁️ 规则生成的比对答案';
-      
-      const container = document.getElementById('outputContainer');
-      let html = '<div class="p-6 bg-white border border-[#E2D7C3] rounded-lg leading-loose text-xl tracking-wider">';
-      for (let i = 0; i < currentRawClean.length; i++) {
-        html += `<span>${currentRawClean[i]}</span>`;
-        if (standardPunctMap[i]) {
-          html += `<span class="text-[#B83B2A] font-bold cursor-pointer hover:scale-125 inline-block mx-1 transition" onclick="showPunctAnalysis(${i}, '${standardPunctMap[i]}', true)">${standardPunctMap[i]}</span>`;
+      const n=clean.length, punctMap={}, ruleExplain={}; if(!n) return {punctMap,ruleExplain};
+      const particles=Array.isArray(CLOUD_DATA?.rules?.sentence_end?.particles)?CLOUD_DATA.rules.sentence_end.particles:[];
+      particles.forEach(p=>{
+        if(!p?.char) return;
+        for(let i=0;i<n;i++) if(clean[i]===p.char && !punctMap[i]) {
+          let skip=false;
+          if(Array.isArray(p.exceptions)) p.exceptions.forEach(ex=>{if(String(ex?.context||'').includes('者') && clean[i+1]==='者') skip=true;});
+          if(!skip) {punctMap[i]=p.punct||'。';ruleExplain[i]=p;}
         }
+      });
+      const structures=Array.isArray(CLOUD_DATA?.rules?.fixed_structures)?CLOUD_DATA.rules.fixed_structures:[];
+      structures.forEach(st=>{
+        if(!st?.regex) return;
+        try {const re=new RegExp(st.regex,'g');let m;while((m=re.exec(clean))!==null){const end=m.index+m[0].length-1;if(st.mark_after&&end>=0&&!punctMap[end]){punctMap[end]=st.mark_after;ruleExplain[end]=st;}if(!m[0].length)re.lastIndex++;}}
+        catch(err){console.warn('断句规则正则无效：',st.regex,err);}
+      });
+      if(!punctMap[n-1]) {punctMap[n-1]='。';ruleExplain[n-1]={label:'句意结束（默认规则）'};}
+      return {punctMap,ruleExplain};
+    }
+
+    // ==================== UI 渲染与交互 ====================
+    function renderPracticeView() {
+      const container=document.getElementById('outputContainer'), card=document.createElement('div');
+      card.className='p-6 bg-white border border-[#E2D7C3] rounded-lg leading-loose text-xl tracking-wider pb-24';
+      for(let i=0;i<currentRawClean.length;i++) {
+        const charSpan=document.createElement('span'), mark=userMarks[i];
+        charSpan.className='practice-char'; if(mark!==undefined) charSpan.classList.add('marked');
+        if(activeCharIndex===i) charSpan.classList.add('active-target');
+        charSpan.textContent=currentRawClean[i]; charSpan.dataset.index=String(i);
+        charSpan.addEventListener('click',()=>selectChar(i));
+        if(mark!==undefined) {
+          const action=document.createElement('span'),symbol=document.createElement('span');
+          action.className='punct-analysis-btn';symbol.className='punct-symbol';symbol.textContent=mark;action.appendChild(symbol);
+          action.addEventListener('click',e=>showPunctAnalysis(i,mark,e));charSpan.appendChild(action);
+        }
+        card.appendChild(charSpan);
+        if(i<currentRawClean.length-1){const sep=document.createElement('span');sep.className='text-gray-200 mx-0.5';sep.textContent='|';card.appendChild(sep);}
       }
-      html += '</div>';
-      container.innerHTML = html;
+      container.replaceChildren(card);
+    }
+
+    window.selectChar = function(index) {
+      if (currentMode !== 'practice') return;
+      activeCharIndex = index;
+      renderPracticeView();
+      
+      const toolbar = document.getElementById('floatingToolbar');
+      document.getElementById('toolbarTargetText').textContent = i18n[currentLang].after_char.replace('「」', `「${currentRawClean[index]}」`);
+      toolbar.classList.add('show');
     };
 
-    window.showPunctAnalysis = function(index, punct, isFromAnswerView = false) {
-      const charBefore = currentRawClean[index];
-      let statusHtml = '';
-      if (currentMode === 'practice' && !isFromAnswerView) {
-        const isCorrect = standardPunctMap[index] === punct;
-        statusHtml = isCorrect ? '<span class="text-green-600 font-bold">✅ 正确</span>' : `<span class="text-red-500 font-bold">❌ 有误（标准为「${standardPunctMap[index] || '不断'}」）</span>`;
-      }
+    window.insertPunct = function(punct) {
+      if (activeCharIndex === -1) return;
+      if (punct === '') delete userMarks[activeCharIndex];
+      else userMarks[activeCharIndex] = punct;
+      activeCharIndex = -1;
+      hideToolbar();
+      renderPracticeView();
+    };
 
-      let html = '';
-      if (standardRuleExplain[index]) {
-          const ruleObj = standardRuleExplain[index];
-          html += `<div class="rule-card">`;
-          html += `<div class="font-bold text-[#B83B2A] mb-1">📏 判定规则：</div>`;
-          if (ruleObj.label) html += `<p class="text-sm">${ruleObj.label}</p>`;
-          if (ruleObj.note) html += `<p class="text-xs text-gray-600 mt-1">${ruleObj.note}</p>`;
-          html += `</div>`;
-      } else {
-          html += `<div class="rule-card"><p class="text-sm">根据语意结构或句末语气停顿。</p></div>`;
-      }
+    window.hideToolbar = function() {
+      document.getElementById('floatingToolbar').classList.remove('show');
+    };
 
-      if (isDataLoaded) {
-          let xuciInfo = '';
-          const targetXuci = CLOUD_DATA.xuci.find(item => item.zi === charBefore || item.zi === punct);
-          if (targetXuci) {
-            xuciInfo += `<ul class="list-disc pl-4 space-y-1 text-xs text-gray-600">`;
-            targetXuci.body.forEach(item => { if (item[0]) xuciInfo += `<li><b>${item[0]}</b> ${item[1]||''}</li>`; });
-            xuciInfo += `</ul>`;
-            html += `<div class="mb-2"><div class="text-xs font-bold text-[#B83B2A] mb-1">📚 虚词用法：</div>${xuciInfo}</div>`;
-          }
-          let shiciInfo = '';
-          const targetShici = CLOUD_DATA.shici.find(item => item.字 === charBefore);
-          if (targetShici) {
-            shiciInfo += `<ul class="list-disc pl-4 space-y-1 text-xs text-gray-600">`;
-            targetShici.义项.forEach(item => { shiciInfo += `<li><b>${item.义项}</b> 例：${item.例句}</li>`; });
-            shiciInfo += `</ul>`;
-            html += `<div class="mb-2"><div class="text-xs font-bold text-[#B83B2A] mb-1">📖 实词义项：</div>${shiciInfo}</div>`;
-          }
+    window.showPunctAnalysis = function(index,punct,event) {
+      if(event) event.stopPropagation();
+      const ch=currentRawClean[index]||'', title=document.getElementById('modalTitle'), body=document.getElementById('modalBody');
+      title.replaceChildren(); body.replaceChildren();
+      const t=document.createElement('span');t.textContent=`「${ch}」 `;title.appendChild(t);
+      if(currentMode==='practice') {const st=document.createElement('span'),ok=standardPunctMap[index]===punct;st.className=ok?'text-green-600 font-bold':'text-red-500 font-bold';st.textContent=ok?i18n[currentLang].correct:(currentLang==='zh'?`❌ 有误（标准为「${standardPunctMap[index]||'无标点'}」）`:`❌ Wrong (Standard: ${standardPunctMap[index]||'None'})`);title.appendChild(st);}
+      const section=(heading,lines)=>{if(!lines.length)return;const wrap=document.createElement('div');wrap.className='mb-2';const h=document.createElement('div');h.className='text-xs font-bold text-[#B83B2A] mb-1';h.textContent=heading;const ul=document.createElement('ul');ul.className='list-disc pl-4 text-xs';lines.forEach(line=>{const li=document.createElement('li');li.textContent=line;ul.appendChild(li);});wrap.append(h,ul);body.appendChild(wrap);};
+      const rule=standardRuleExplain[index];
+      if(rule){const card=document.createElement('div');card.className='rule-card';const h=document.createElement('div');h.className='font-bold text-[#B83B2A] mb-1';h.textContent=i18n[currentLang].rule_prefix;const d=document.createElement('p');d.className='text-sm';d.textContent=rule.label||'Contextual';card.append(h,d);body.appendChild(card);}
+      if(isDataLoaded){
+        const x=CLOUD_DATA.xuci.find(item=>item?.zi===ch);if(x)section(i18n[currentLang].xuci_prefix,(Array.isArray(x.body)?x.body:[]).filter(v=>v?.[0]).map(v=>`${v[0]} ${v[1]||''}`));
+        const sh=CLOUD_DATA.shici.find(item=>item?.字===ch);if(sh)section(i18n[currentLang].shici_prefix,(Array.isArray(sh.义项)?sh.义项:[]).map(v=>`${v?.义项||''} 例：${v?.例句||''}`));
       }
+      if(!body.childElementCount) body.textContent=currentLang==='zh'?'暂无相关规则或词义资料。':'No related rule or dictionary entry.';
+      document.getElementById('infoModal').style.display='flex';
+    };
 
-      document.getElementById('modalTitle').innerHTML = `「${charBefore}」后标点解析 ${statusHtml}`;
-      document.getElementById('modalBody').innerHTML = html;
-      document.getElementById('infoModal').style.display = 'flex';
+    window.showLocalAnswer = function() {
+      if(currentMode!=='practice') return;
+      document.getElementById('viewTitle').textContent=i18n[currentLang].local_ans_title;
+      const card=document.createElement('div');card.className='p-6 bg-white border border-[#E2D7C3] rounded-lg leading-loose text-xl tracking-wider';
+      for(let i=0;i<currentRawClean.length;i++){
+        const span=document.createElement('span');span.textContent=currentRawClean[i];card.appendChild(span);
+        if(standardPunctMap[i]){const btn=document.createElement('span'),sym=document.createElement('span');btn.className='punct-analysis-btn';sym.className='punct-symbol';sym.textContent=standardPunctMap[i];btn.appendChild(sym);btn.addEventListener('click',e=>showPunctAnalysis(i,standardPunctMap[i],e));card.appendChild(btn);}
+      }
+      document.getElementById('outputContainer').replaceChildren(card);hideToolbar();
+    };
+
+    // ==================== AI 生成答案与翻译 ====================
+    window.showAIAnswer = async function() {
+      const key=sessionStorage.getItem('deepseek_key')||localStorage.getItem('deepseek_key');
+      if(!key){alert(i18n[currentLang].alert_key);toggleConfig();return;}
+      const rawText=currentRawClean||stripPunctuation(document.getElementById('rawInput').value);
+      if(!rawText){alert(i18n[currentLang].alert_input);return;}
+      const container=document.getElementById('outputContainer'),aiContent=document.getElementById('aiResultContent');
+      document.getElementById('viewTitle').textContent=i18n[currentLang].ai_gen_title;
+      container.textContent=i18n[currentLang].ai_generating;
+      document.getElementById('aiResultArea').classList.remove('hidden');
+      document.getElementById('btnTranslate').classList.remove('hidden');
+      document.getElementById('aiResultTitle').textContent=i18n[currentLang].ai_parse_sub;
+      aiContent.textContent=i18n[currentLang].ai_wait;document.getElementById('aiStatus').textContent=i18n[currentLang].ai_loading;
+      try{
+        const prompt=currentLang==='zh'?'你是资深古代汉语断句专家。请为无标点的文言文精准断句。只输出 JSON，不要 Markdown。结构：{"punctuated":"带标点的完整原文","analysis":[{"sentence":"句子原文","meaning":"大意解析"}]}。':'You are an expert in Classical Chinese. Punctuate the text. Return JSON only, no Markdown. Schema: {"punctuated":"punctuated full text","analysis":[{"sentence":"sentence","meaning":"meaning/translation"}]}.';
+        const answer=await callDeepSeek([{role:'system',content:prompt},{role:'user',content:rawText}],0.1),obj=extractJSON(answer);
+        if(typeof obj.punctuated!=='string') throw new Error('AI 返回结果缺少 punctuated 字段。');
+        aiPunctuatedText=obj.punctuated;
+        const card=document.createElement('div');card.className='p-6 bg-white border border-[#E2D7C3] rounded-lg leading-loose text-xl tracking-wider text-[#B83B2A]';card.style.whiteSpace='pre-wrap';card.textContent=obj.punctuated;container.replaceChildren(card);
+        aiContent.replaceChildren();const rows=Array.isArray(obj.analysis)?obj.analysis:[];
+        rows.forEach((item,i)=>{const block=document.createElement('div');block.className='mb-3';const sent=document.createElement('span');sent.className='font-bold text-[#2B2623]';sent.textContent=`【${i+1}】${item?.sentence||''}`;const meaning=document.createElement('span');meaning.className='text-gray-600';meaning.textContent=item?.meaning||'';block.append(sent,document.createElement('br'),meaning);aiContent.appendChild(block);});
+        if(!rows.length)aiContent.textContent=currentLang==='zh'?'AI 未提供逐句解析。':'No sentence analysis was returned.';
+        document.getElementById('aiStatus').textContent=i18n[currentLang].ai_done;
+      }catch(err){console.error(err);container.textContent=`AI Error: ${err.message}`;aiContent.textContent=i18n[currentLang].ai_fail;document.getElementById('aiStatus').textContent=i18n[currentLang].ai_fail;}
+    };
+
+    window.startTranslate = async function() {
+      const key=sessionStorage.getItem('deepseek_key')||localStorage.getItem('deepseek_key');if(!key){alert(i18n[currentLang].alert_key);return;}
+      let fullText='';
+      if(currentMode==='standard_view')fullText=currentSourceText||document.getElementById('outputContainer').innerText;
+      else if(currentMode==='practice')fullText=aiPunctuatedText||currentRawClean.split('').map((c,i)=>c+(userMarks[i]||standardPunctMap[i]||'')).join('');
+      else fullText=document.getElementById('rawInput').value.trim();
+      if(!fullText.trim()){alert(i18n[currentLang].alert_input);return;}
+      const result=document.getElementById('aiResultContent');result.textContent=i18n[currentLang].translate_loading;
+      document.getElementById('aiResultTitle').textContent=i18n[currentLang].translate_title;document.getElementById('aiStatus').textContent=i18n[currentLang].ai_loading;
+      try{
+        const prompt=currentLang==='zh'?'你是古汉语专家。请直接给出这段文言文通顺、准确的现代汉语意译，不需要解释，直接输出译文。':'You are an expert in Classical Chinese. Output a fluent and accurate English translation without extra explanation.';
+        const translated=await callDeepSeek([{role:'system',content:prompt},{role:'user',content:fullText}],0.2);
+        result.textContent=translated;document.getElementById('aiStatus').textContent=i18n[currentLang].ai_done;
+      }catch(err){console.error(err);result.textContent=`Error: ${err.message}`;document.getElementById('aiStatus').textContent=i18n[currentLang].ai_fail;}
     };
 
     window.closeModal = function(e) {
       if (e && e.target !== document.getElementById('infoModal')) return;
       document.getElementById('infoModal').style.display = 'none';
     };
-
-    // ==================== 7. DeepSeek 翻译逻辑 ====================
-    window.startTranslate = async function() {
-      const key = localStorage.getItem('deepseek_key');
-      if (!key) { alert('请先点击右上角 ⚙️ AI 设置，填入 DeepSeek API Key。'); return; }
-      
-      const model = localStorage.getItem('deepseek_model') || 'deepseek-chat';
-      const resultDiv = document.getElementById('translationResult');
-      
-      // 获取当前带标点的完整文本
-      let fullText = '';
-      if (currentMode === 'standard_view') {
-         fullText = document.getElementById('outputContainer').innerText; // 简单抽取
-      } else {
-         fullText = currentRawClean.split('').map((c, i) => c + (standardPunctMap[i] || '')).join('');
+    
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('.practice-char') && !e.target.closest('#floatingToolbar')) {
+         activeCharIndex = -1;
+         hideToolbar();
+         if (currentMode === 'practice') renderPracticeView();
       }
+    });
 
-      resultDiv.innerHTML = '<div class="text-blue-500 animate-pulse">DeepSeek 正在思考与翻译，请稍候...</div>';
-
-      try {
-        const response = await fetch('https://api.deepseek.com/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${key}`
-          },
-          body: JSON.stringify({
-            model: model,
-            messages: [
-              { role: 'system', content: '你是古代汉语文学专家。请对用户提供的文言文进行逐句翻译，并给出重点字词注释。要求排版清晰，先给出完整意译，再列出重点字词解析。' },
-              { role: 'user', content: fullText }
-            ],
-            temperature: 0.3
-          })
-        });
-
-        if (!response.ok) {
-          const err = await response.json();
-          throw new Error(err.error?.message || '请求失败');
-        }
-
-        const data = await response.json();
-        const content = data.choices[0].message.content;
-        
-        // 简单把换行转成 HTML
-        resultDiv.innerHTML = content.replace(/\n/g, '<br>');
-
-      } catch (error) {
-        resultDiv.innerHTML = `<div class="text-red-500">翻译出错：${error.message}<br>请检查 API Key 是否有效或余额是否充足。</div>`;
-      }
-    };
-
-    window.onload = function() {
-      document.getElementById('rawInput').value = "陈胜者阳城人也字涉吴广者阳夏人也字叔陈涉少时尝与人佣耕辍耕之垄上怅恨久之曰苟富贵无相忘佣者笑而应曰若为佣耕何富贵也陈涉太息曰嗟乎燕雀安知鸿鹄之志哉";
-    };
+    // 初始化语言
+    document.addEventListener('DOMContentLoaded', applyLanguage);
+    if (document.readyState !== 'loading') applyLanguage();
   </script>
 </body>
 </html>
