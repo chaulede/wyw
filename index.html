@@ -493,6 +493,7 @@
 
       renderPracticeView();
       document.getElementById('viewTitle').innerText = i18n[currentLang].practice_title;
+      document.getElementById('aiStatus').textContent = isDataLoaded ? '规则：内置引擎 + 云端规则库' : '规则：内置引擎（未加载云端规则库）';
       document.getElementById('hintText').innerText = i18n[currentLang].practice_hint;
       
       document.getElementById('aiResultArea').classList.remove('hidden');
@@ -502,7 +503,7 @@
       document.getElementById('btnTranslate').classList.remove('hidden');
     }; 
 
-    function runEngineFromRules(clean) {
+    function runCloudRules(clean) {
       const n=clean.length, punctMap={}, ruleExplain={}; if(!n) return {punctMap,ruleExplain};
       const particles=Array.isArray(CLOUD_DATA?.rules?.sentence_end?.particles)?CLOUD_DATA.rules.sentence_end.particles:[];
       particles.forEach(p=>{
@@ -521,6 +522,140 @@
       });
       if(!punctMap[n-1]) {punctMap[n-1]='。';ruleExplain[n-1]={label:'句意结束（默认规则）'};}
       return {punctMap,ruleExplain};
+    }
+
+    // ==================== 内置离线断句引擎（不依赖云端规则库） ====================
+    const BI_PROTECT = ['夫子','大夫','匹夫','独夫','农夫','丈夫','士大夫','孔子','孟子','曾子','颜渊','子路','子贡','沛公','项羽','先帝','陛下','中国','同志','君子','小人','天下','诸侯','六国','秦人','所以','以为','今日','先王','朝廷','有司','咸阳','邯郸','灵魂','鸿儒','白丁','肉躯','万物','百姓','国家','君臣','父子','礼义','仁义','道德','天地','万民','圣人','贤人','明主','忠臣'];
+    const BI_START2 = ['若夫','至若','且夫','然则','是以','是故','然而','而况','至于','故夫','今夫','试问','向使','故曰','诚能','既得','重念','窃以','虽欲','于是','不然','然后','是故'];
+    const BI_COMMA_START = new Set(['然则','是以','是故','诚能','既得','窃以','故曰','虽欲','然后','于是','然而']);
+    const BI_QUESTION = [/不亦.{1,10}?乎/g, /何.{1,8}?之有/g, /无乃.{1,10}?乎/g, /岂.{1,14}?[乎哉耶]/g, /安能.{1,12}?[乎哉耶]/g, /何必.{1,26}?哉/g, /其可.{1,4}乎/g, /将奈之何/g, /孰与.{1,10}?[乎哉耶]/g, /何哉/g];
+    const BI_FUNC = new Set('之而以于其所不无有为则如若是惟然必尽'.split(''));
+
+    function builtinPunctuate(c) {
+      const n = c.length, mk = new Array(n).fill(''), lock = new Array(n).fill(false), ex = {};
+      const put = (i, p, why, force) => { if (i < 0 || i >= n || mk[i] || (lock[i] && !force)) return false; mk[i] = p; ex[i] = { label: why }; return true; };
+      const gap = i => { let g = 0; for (let j = i - 1; j >= 0 && !mk[j]; j--) g++; return g + 1; }; // 距上一标点的字数（含本字）
+      const isStop = p => /[。？！]/.test(p);
+
+      // 1 专名保护
+      BI_PROTECT.forEach(w => { let k = c.indexOf(w); while (k !== -1) { for (let j = k; j < k + w.length - 1; j++) lock[j] = true; k = c.indexOf(w, k + 1); } });
+
+      // 2 固定疑问/反问句式
+      BI_QUESTION.forEach(re => { re.lastIndex = 0; let m; while ((m = re.exec(c)) !== null) {
+        const s = m.index, e = s + m[0].length - 1;
+        for (let k = s; k < e; k++) lock[k] = true;
+        put(s - 1, mk[s - 1] || '，', '固定句式前停顿');
+        put(e, '？', '固定疑问/反问句式（' + m[0].slice(0, 6) + '…）', true);
+        if (m[0].length === 0) re.lastIndex++; } });
+
+      // 3 感叹独句
+      ['嗟乎', '呜呼', '噫嘻', '悲夫', '哀哉'].forEach(w => { let k = c.indexOf(w); while (k !== -1) {
+        if (k > 0) put(k - 1, '。', '感叹语前断句');
+        lock[k] = true; put(k + w.length - 1, '！', '感叹独句', true); k = c.indexOf(w, k + w.length); } });
+
+      // 4 引语标志“曰/云”
+      for (let i = 1; i < n; i++) {
+        const ch = c[i]; if (ch !== '曰' && ch !== '云') continue;
+        if (ch === '云' && (c[i + 1] === '尔' || '人亦如何不'.includes(c[i - 1]))) continue;
+        if (ch === '曰' && '或故如又复'.includes(c[i - 1])) { put(i - 2, '。', '“曰”前断句'); put(i, '：', '引出话语', true); continue; }
+        const sp = '子公王渊路人'.includes(c[i - 1]) && i >= 2 ? i - 2 : i - 1;
+        put(sp - 1, '。', '引语前断句'); put(i, '：', '“' + ch + '”引出话语', true);
+      }
+
+      // 5 句首发语词/连词
+      for (let i = 1; i < n; i++) {
+        if (mk[i - 1] || lock[i - 1]) continue;
+        const two = c.slice(i, i + 2);
+        if (BI_START2.includes(two) && gap(i - 1) >= 3) { put(i - 1, BI_COMMA_START.has(two) ? '，' : '。', '句首词“' + two + '”前停顿'); continue; }
+        const ch = c[i];
+        if ('夫盖惟洎'.includes(ch) && gap(i - 1) >= 4) {
+          if (ch === '夫' && (i === n - 1 || '也矣乎哉'.includes(c[i + 1]) || '悲独农丈匹士若且今'.includes(c[i - 1]))) continue;
+          if (ch === '盖' && '之乎'.includes(c[i - 1])) continue;
+          if (ch === '惟' && c[i - 1] === '畏') continue;
+          put(i - 1, ch === '惟' ? '，' : '。', '发语词“' + ch + '”前断句');
+        }
+      }
+
+      // 6 句末语气词
+      for (let i = 0; i < n; i++) {
+        if (mk[i] || lock[i]) continue; const ch = c[i], nx = c[i + 1] || '', g = gap(i);
+        if (ch === '也') {
+          if ('者乎哉'.includes(nx) || g < 2) continue;
+          if (nx === '则') { put(i, '，', '“也则”后停顿'); continue; }
+          const tail = c.slice(i + 1, i + 9); const nextAlso = tail.includes('也') && !/[曰云]/.test(tail.slice(0, tail.indexOf('也')));
+          put(i, nextAlso ? '，' : '。', nextAlso ? '“也”表停顿（后有对应分句）' : '句末语气词“也”');
+        } else if (ch === '矣') { if (g >= 2 && !'乎哉'.includes(nx)) put(i, '。', '句末语气词“矣”'); }
+        else if (ch === '焉') { if (g >= 3 && nx !== '者' && nx !== '能') put(i, '。', '句末语气词“焉”'); }
+        else if (ch === '耳') { if (g >= 3 && !'目鼻'.includes(nx)) put(i, '。', '句末语气词“耳”'); }
+        else if ('乎耶欤哉'.includes(ch)) {
+          if (g >= 4 && !'其之于以而则'.includes(nx)) {
+            const tail = c.slice(Math.max(0, i - 12), i); put(i, ch === '哉' && !/[何岂孰安]/.test(tail) ? '！' : '？', '句末语气词“' + ch + '”');
+          }
+        }
+      }
+
+      // 7 者/而/则/虽 等虚词处的停顿
+      for (let i = 1; i < n - 1; i++) {
+        const ch = c[i], g = gap(i);
+        if (ch === '者' && !mk[i] && !lock[i] && g >= 2) {
+          const tail = c.slice(i + 1, i + 15); const k = tail.indexOf('也');
+          if ('必则非'.includes(c[i + 1]) || (k >= 2 && !/[，。？！；：]/.test(tail.slice(0, k)) && !/[曰云]/.test(tail.slice(0, k)))) put(i, '，', '“者”后停顿（判断/分层）');
+        }
+        if ((ch === '而' || ch === '则' || ch === '虽') && g >= 4 && !mk[i - 1] && !lock[i - 1]) {
+          if (ch === '则' && '然是故法准规'.includes(c[i - 1])) continue;
+          if (ch === '而' && c[i + 1] === '已') continue;
+          put(i - 1, '，', '连词“' + ch + '”前停顿');
+        }
+      }
+
+      // 8 对偶/排比：把相邻等长词组分开
+      const stops = []; for (let i = 0; i < n; i++) if (mk[i]) stops.push(i);
+      let s0 = 0; const segs = []; stops.forEach(i => { segs.push([s0, i]); s0 = i + 1; }); if (s0 < n) segs.push([s0, n - 1]);
+      segs.forEach(([a, b]) => { let pos = a;
+        while (b - pos + 1 >= 8) { let hit = false;
+          for (const len of [4, 5, 6]) { if (b - pos + 1 < len * 2) continue;
+            const s1 = c.slice(pos, pos + len), s2 = c.slice(pos + len, pos + len * 2); let sc = 0;
+            for (let j = 0; j < len; j++) { if (s1[j] === s2[j]) sc += 2; else if (BI_FUNC.has(s1[j]) && BI_FUNC.has(s2[j])) sc += 1.5; }
+            if (sc >= (len === 4 ? 3.5 : len === 5 ? 4 : 4.5) && !lock[pos + len - 1]) { put(pos + len - 1, '，', '对偶/排比分句'); pos += len; hit = true; break; } }
+          if (!hit) pos++; } });
+
+      // 9 过长无标点处：取最接近中点的虚词边界切分
+      let start = 0;
+      const splitRun = (p, q) => { // 对 [p,q] 内无标点的片段递归切分
+        if (q - p + 1 <= 11) return;
+        const mid = (p + q) / 2; let best = -1, bd = 1e9;
+        for (let j = p + 2; j <= q - 3; j++) {
+          if (lock[j] || mk[j]) continue;
+          const ok = '者之也'.includes(c[j]) || '而则乃故以于'.includes(c[j + 1]);
+          if (!ok) continue; const d = Math.abs(j - mid);
+          if (d < bd) { bd = d; best = j; }
+        }
+        if (best < 0) return;
+        put(best, '，', '分句过长，按虚词边界切分');
+        splitRun(p, best); splitRun(best + 1, q);
+      };
+      for (let i = 0; i <= n; i++) { if (i === n || mk[i]) { splitRun(start, i === n ? n - 1 : i - 1); start = i + 1; } }
+
+      // 10 把逗号累积成句号：≥3 个逗号或超 24 字则收束
+      let commas = 0, lastStop = -1;
+      for (let i = 0; i < n; i++) { if (!mk[i]) continue;
+        if (isStop(mk[i]) || mk[i] === '：') { commas = 0; lastStop = i; continue; }
+        if (mk[i] === '，' || mk[i] === '；') { commas++;
+          if ((commas >= 4 || i - lastStop > 26) && i < n - 1 && !lock[i] && !'者也而则乃故'.includes(c[i + 1] || '')) { mk[i] = '。'; ex[i] = { label: '意群较长，收束为一句' }; commas = 0; lastStop = i; } } }
+
+      if (!mk[n - 1] || mk[n - 1] === '，') { mk[n - 1] = '。'; ex[n - 1] = { label: '全文末句收束' }; }
+      const punctMap = {}; mk.forEach((p, i) => { if (p) punctMap[i] = p; });
+      return { punctMap, ruleExplain: ex };
+    }
+
+    function runEngineFromRules(clean) {
+      let simp = clean;
+      try { if (t2sConverter) { const s = t2sConverter(clean); if (s.length === clean.length) simp = s; } } catch (_) {}
+      const base = builtinPunctuate(simp);           // 内置规则：始终可用（支持繁体）
+      const cloud = runCloudRules(clean);            // 云端规则库：若已加载则补充空缺
+      const n = clean.length;
+      Object.keys(cloud.punctMap).forEach(k => { k = Number(k); if (k !== n - 1 && !base.punctMap[k]) { base.punctMap[k] = cloud.punctMap[k]; base.ruleExplain[k] = cloud.ruleExplain[k]; } });
+      return base;
     }
 
     // ==================== UI 渲染与交互 ====================
