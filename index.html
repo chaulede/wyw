@@ -24,9 +24,9 @@
     .practice-char.marked { border-bottom: 3px solid #B83B2A; margin-right: 12px; color: #2B2623; }
     
     /* 标点样式 */
-    .punct-symbol { color: #B83B2A; font-weight: bold; font-size: 1.2em; }
-    .punct-analysis-btn { cursor: pointer; display: inline-block; margin-left: 2px; }
-    .punct-analysis-btn:hover { transform: scale(1.2); }
+    .punct-symbol { color: #B83B2A; font-weight: bold; font-size: 1.15em; }
+    .punct-analysis-btn { cursor: pointer; display: inline; margin-left: 1px; margin-right: 3px; border-radius: 3px; padding: 0 1px; }
+    .punct-analysis-btn:hover { background-color: #FDE8E8; }
 
     /* 底部悬浮工具栏 */
     #floatingToolbar {
@@ -62,9 +62,9 @@
           <span id="langToggleText">EN</span>
         </button>
         <button onclick="loadCloudData()" id="btnCloud" class="px-4 py-1.5 rounded-lg bg-[#5C4938] hover:bg-[#47382B] text-[#FCF9F2] text-sm font-medium transition shadow-sm" data-i18n="load_data">
-          ☁️ 加载题库
+          ☁️ 加载云端题库
         </button>
-        <span id="cloudStatus" class="text-xs text-orange-500 font-medium" data-i18n="not_loaded">未加载</span>
+        <span id="cloudStatus" class="text-xs text-green-700 font-medium" data-i18n="builtin_ready">已内置基础规则</span>
         <button onclick="toggleConfig()" class="px-3 py-1.5 rounded-lg border border-[#D4C5AE] text-[#5C4938] text-sm hover:bg-[#EFE6D5]" data-i18n="ai_settings">⚙️ AI 设置</button>
       </div>
     </div>
@@ -114,7 +114,7 @@
          <h2 class="font-bold text-sm text-[#5C4938]" data-i18n="standard_text">二、标准原文（云端题库）</h2>
          <div class="flex gap-2">
            <select id="textSelect" class="flex-1 p-2 rounded bg-[#F7F2E7] border border-[#DCD0BC] text-sm">
-             <option value="" data-i18n="select_text">-- 请先加载题库 --</option>
+             <option value="" data-i18n="select_text">-- 请先加载云端题库 --</option>
            </select>
            <button onclick="showStandardText()" class="px-3 py-2 rounded bg-[#5C4938] text-[#FCF9F2] text-sm hover:bg-[#47382B]" data-i18n="view">查看</button>
         </div>
@@ -124,13 +124,16 @@
     <!-- 右侧展示区 -->
     <section class="lg:col-span-8 flex flex-col">
       <div class="paper-card rounded-xl p-6 flex-1 flex flex-col relative">
-        <div class="flex justify-between items-center pb-2 mb-4 border-b border-[#E6DCCB]">
+        <div class="flex flex-wrap justify-between items-center gap-2 pb-2 mb-4 border-b border-[#E6DCCB]">
           <h2 id="viewTitle" class="font-bold text-lg text-[#5C4938]" data-i18n="display_area">显示区</h2>
           <span id="hintText" class="text-xs text-gray-500" data-i18n="wait_action">等待操作...</span>
         </div>
+
+        <!-- 规则匹配状态提示横幅 -->
+        <div id="ruleNoticeBanner" class="hidden mb-3 px-4 py-2.5 rounded-lg text-xs border"></div>
         
         <div id="outputContainer" class="flex-1 overflow-y-auto text-xl leading-loose tracking-wide mb-4">
-          <div class="text-center text-[#9A8C7D] py-16 text-base" data-i18n="empty_hint">请在左侧输入文本并开始练习。</div>
+          <div class="text-center text-[#9A8C7D] py-16 text-base" data-i18n="empty_hint">请在左侧输入文本并开始练习或查看规则答案。</div>
         </div>
 
         <div id="aiResultArea" class="hidden mt-4 pt-4 border-t border-[#E6DCCB]">
@@ -172,12 +175,12 @@
   </div>
 
   <script>
-    // ==================== 国际化 (i18n) 字典 ====================
+    // ==================== 1. 国际化 (i18n) 字典 ====================
     const i18n = {
       zh: {
         app_title: "文言文断句、翻译与解析",
-        load_data: "☁️ 加载题库",
-        not_loaded: "未加载",
+        load_data: "☁️ 加载云端题库",
+        builtin_ready: "已内置完整规则库",
         ai_settings: "⚙️ AI 设置",
         deepseek_setup: "DeepSeek API 设置",
         save: "保存设置",
@@ -189,27 +192,28 @@
         rule_answer: "👁️ 规则答案",
         ai_answer: "✨ AI 智能断句与解析",
         standard_text: "二、标准原文（云端题库）",
-        select_text: "-- 请先加载题库 --",
+        select_text: "-- 请先加载云端题库 --",
+        select_text_ready: "-- 请选择标准课文 --",
         view: "查看",
         display_area: "显示区",
         wait_action: "等待操作...",
-        empty_hint: "请在左侧输入文本并开始练习。",
+        empty_hint: "请在左侧输入文本并开始练习或查看规则答案。",
         ai_parse_title: "🤖 智能解析区",
         translate: "全文翻译",
         waiting: "等待操作...",
         after_char: "在「」后：",
         delete: "删除",
-        // 动态提示
-        loaded: "✅ 已加载",
-        load_fail: "❌ 失败",
-        processing: "处理中...",
+        loaded: "✅ 云端题库与扩展规则已合并",
+        load_fail: "❌ 云端加载失败（继续使用内置规则）",
+        processing: "加载中...",
         parsing: "正在解析文件...",
         ocr_scan: "识别扫描件中...",
         ocr_img: "识别图片中...",
         practice_title: "✏️ 断句练习",
-        practice_hint: "点击汉字，在下方选择插入标点",
+        practice_hint: "点击汉字选择标点；点击已加标点可核对规则依据",
         std_title: "📖 原文：",
-        local_ans_title: "👁️ 规则生成的答案",
+        local_ans_title: "👁️ 规则生成的断句答案",
+        local_ans_hint: "点击红色标点可查看对应的句首/句尾/句式规则",
         ai_gen_title: "✨ AI 智能解析",
         ai_generating: "AI 正在通读全文、分析语境并尝试断句...",
         ai_parse_sub: "✨ 段落解析",
@@ -222,16 +226,17 @@
         alert_key: "请先点击右上角 ⚙️ AI 设置填入 Key",
         alert_input: "请先输入文本",
         alert_select: "请选择课文",
-        rule_prefix: "📏 规则：",
+        rule_prefix: "📏 触发断句规则：",
         xuci_prefix: "📚 虚词用法：",
         shici_prefix: "📖 实词义项：",
-        correct: "✅ 正确",
-        wrong: "❌ 有误（标准为「」）"
+        correct: "✅ 断句正确",
+        no_rule_warn: "⚠️ 未匹配到任何特定句首、句尾或固定句式规则（仅在末尾添加了默认句号）。该文本可能不含典型标志虚词，建议结合主谓结构人工分析或点击「AI 智能断句与解析」。",
+        rule_hit_info: "✅ 已根据《古文断句标点规则库》自动匹配到 {count} 处断句点（点击标点可查看具体规则）。"
       },
       en: {
         app_title: "Classical Chinese Punctuation & Translation",
-        load_data: "☁️ Load Database",
-        not_loaded: "Not Loaded",
+        load_data: "☁️ Load Cloud DB",
+        builtin_ready: "Built-in Rules Ready",
         ai_settings: "⚙️ AI Settings",
         deepseek_setup: "DeepSeek API Setup",
         save: "Save Settings",
@@ -243,27 +248,28 @@
         rule_answer: "👁️ Rule Answer",
         ai_answer: "✨ AI Smart Punctuation",
         standard_text: "2. Standard Text (Cloud)",
-        select_text: "-- Load database first --",
+        select_text: "-- Load cloud database first --",
+        select_text_ready: "-- Select a standard text --",
         view: "View",
         display_area: "Display Area",
         wait_action: "Waiting for action...",
-        empty_hint: "Please input text on the left and start practice.",
+        empty_hint: "Please input text on the left and start practice or view rule answer.",
         ai_parse_title: "🤖 AI Analysis Area",
         translate: "Translate",
         waiting: "Waiting...",
         after_char: "After「」: ",
         delete: "Delete",
-        // 动态提示
-        loaded: "✅ Loaded",
-        load_fail: "❌ Failed",
-        processing: "Processing...",
+        loaded: "✅ Cloud DB & Rules Merged",
+        load_fail: "❌ Cloud Failed (Using Built-in Rules)",
+        processing: "Loading...",
         parsing: "Parsing file...",
         ocr_scan: "Scanning PDF...",
         ocr_img: "Scanning image...",
         practice_title: "✏️ Punctuation Practice",
-        practice_hint: "Click a character, then select punctuation below",
+        practice_hint: "Click a character to insert punctuation; click a mark to verify",
         std_title: "📖 Text: ",
         local_ans_title: "👁️ Rule-Generated Answer",
+        local_ans_hint: "Click any red punctuation mark to inspect the matched rule",
         ai_gen_title: "✨ AI Smart Analysis",
         ai_generating: "AI is reading and punctuating the text...",
         ai_parse_sub: "✨ Sentence Analysis",
@@ -276,11 +282,12 @@
         alert_key: "Please fill in API Key in ⚙️ AI Settings",
         alert_input: "Please input text first",
         alert_select: "Please select a text",
-        rule_prefix: "📏 Rule: ",
+        rule_prefix: "📏 Matched Rule: ",
         xuci_prefix: "📚 Function Word: ",
         shici_prefix: "📖 Content Word: ",
         correct: "✅ Correct",
-        wrong: "❌ Wrong (Standard: )"
+        no_rule_warn: "⚠️ No specific sentence-start, sentence-end, or fixed-structure rules matched (only a default period was added at the end). Try AI Smart Punctuation for deeper syntactic analysis.",
+        rule_hit_info: "✅ Matched {count} punctuation breaks from the Classical Chinese Rule Base (click marks for details)."
       }
     };
 
@@ -301,9 +308,143 @@
         if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') el.placeholder = value;
         else el.textContent = value;
       });
+      if (activeCharIndex !== -1 && currentRawClean[activeCharIndex]) {
+        document.getElementById('toolbarTargetText').textContent = i18n[currentLang].after_char.replace('「」', `「${currentRawClean[activeCharIndex]}」`);
+      }
     }
 
-    // ==================== 初始化与状态 ====================
+    // ==================== 2. 内置完整《古文断句标点规则库》 ====================
+    const BUILTIN_RULES_DB = {
+      sentence_start: {
+        // 句首发语词（在词前断开）
+        fa_yu: [
+          { word: '夫', punct_before: '。', label: '句首发语词「夫」（引出议论）', exceptions: ['匹夫', '大夫', '夫子', '丈夫', '老夫', '吾夫', '独夫', '农夫', '若夫', '且夫', '今夫', '故夫'] },
+          { word: '盖', punct_before: '。', label: '句首发语词「盖」（表推原或概说）', exceptions: ['覆盖', '功盖', '遮盖'] },
+          { word: '唯', punct_before: '，', label: '句首发语词/范围副词「唯」', exceptions: [] },
+          { word: '惟', punct_before: '，', label: '句首发语词/范围副词「惟」', exceptions: ['思惟', '畏惟'] },
+          { word: '斯', punct_before: '。', label: '句首指示代词/连词「斯」', exceptions: ['登斯', '如斯', '于斯', '逝者'] }
+        ],
+        // 时间词句首标志（在词前断开）
+        time_words: [
+          { word: '既而', punct_before: '，', label: '时间副词「既而」（不久、随后）' },
+          { word: '俄而', punct_before: '，', label: '时间副词「俄而」（片刻之间）' },
+          { word: '少顷', punct_before: '，', label: '时间词「少顷」（一会儿）' },
+          { word: '未几', punct_before: '，', label: '时间副词「未几」（没过多久）' },
+          { word: '顷之', punct_before: '，', label: '时间副词「顷之」（过了一会儿）' },
+          { word: '已而', punct_before: '，', label: '时间副词「已而」（随后、不久）' },
+          { word: '久之', punct_before: '，', label: '时间副词「久之」（过了很久）' },
+          { word: '居无何', punct_before: '，', label: '时间短语「居无何」（过了不久）' },
+          { word: '无何', punct_before: '，', label: '时间副词「无何」（不久）' },
+          { word: '比至', punct_before: '，', label: '时间连词「比至」（等到到达时）' },
+          { word: '及至', punct_before: '，', label: '时间连词「及至」（等到）' },
+          { word: '至若', punct_before: '。', label: '转换话题时间/连词「至若」（至于）' },
+          { word: '至于', punct_before: '。', label: '转换话题连词「至于」（到了、至于）' },
+          { word: '向使', punct_before: '。', label: '假设时间连词「向使」（假使当初）' },
+          { word: '昔者', punct_before: '。', label: '时间词「昔者」（从前）' },
+          { word: '今者', punct_before: '。', label: '时间词「今者」（如今）' }
+        ],
+        // 复音虚词句首标志（在词前断开）
+        compound_function_words: [
+          { word: '若夫', punct_before: '。', label: '复音发语词「若夫」（至于那，开启新层）' },
+          { word: '且夫', punct_before: '。', label: '复音发语词「且夫」（况且，推进议论）' },
+          { word: '今夫', punct_before: '。', label: '复音发语词「今夫」（如今那）' },
+          { word: '故夫', punct_before: '。', label: '复音发语词「故夫」（所以那）' },
+          { word: '然则', punct_before: '，', label: '复音连词「然则」（既然如此，那么）' },
+          { word: '是以', punct_before: '，', label: '复音连词「是以」（因此）' },
+          { word: '是故', punct_before: '，', label: '复音连词「是故」（因此）' },
+          { word: '然而', punct_before: '，', label: '复音转折连词「然而」（这样却）' },
+          { word: '而况', punct_before: '，', label: '复音递进连词「而况」（何况）' },
+          { word: '何况', punct_before: '，', label: '复音递进连词「何况」' },
+          { word: '虽然', punct_before: '，', label: '复音转折连词「虽然」（虽然如此）' },
+          { word: '否则', punct_before: '，', label: '复音连词「否则」（不然的话）' },
+          { word: '故曰', punct_before: '。', label: '引述总结词「故曰」（所以说）' },
+          { word: '或曰', punct_before: '。', label: '设问引述词「或曰」（有的人说）' },
+          { word: '第以', punct_before: '，', label: '复音连词「第以」（只是因为）' },
+          { word: '诚能', punct_before: '，', label: '假设复音词「诚能」（如果真能）' }
+        ]
+      },
+      sentence_end: {
+        // 单字句尾语气词（在字后断开）
+        particles: [
+          { char: '也', punct: '。', label: '句末语气词「也」（表判断、陈述或感叹）', exceptions: [{ context: '也者' }, { context: '也乎' }, { context: '也哉' }] },
+          { char: '矣', punct: '。', label: '句末语气词「矣」（表已然、将然或感叹）', exceptions: [] },
+          { char: '焉', punct: '。', label: '句末语气词/兼词「焉」（表陈述或“于此”）', exceptions: [{ context: '焉能' }, { context: '焉得' }, { context: '焉知' }] },
+          { char: '耳', punct: '。', label: '句末语气词「耳」（表限止“罢了”）', exceptions: [{ context: '耳目' }, { context: '乱耳' }] },
+          { char: '乎', punct: '？', label: '句末语气词「乎」（表疑问、反问或感叹）', exceptions: [{ context: '乎哉' }, { context: '几乎' }, { context: '合乎' }] },
+          { char: '哉', punct: '？', label: '句末语气词「哉」（表反问或强烈感叹）', exceptions: [] },
+          { char: '耶', punct: '？', label: '句末疑问语气词「耶」（同“邪”，表疑问）', exceptions: [] },
+          { char: '邪', punct: '？', label: '句末疑问语气词「邪」（表疑问或反问）', exceptions: [{ context: '邪说' }, { context: '谗邪' }] },
+          { char: '欤', punct: '？', label: '句末语气词「欤」（表疑问或感叹）', exceptions: [] }
+        ],
+        // 复音句尾格式（在整词最后一个字后断开）
+        compound_endings: [
+          { word: '而已', punct: '。', label: '复音句尾「而已」（“罢了”，表限止）' },
+          { word: '已矣', punct: '。', label: '复音句尾「已矣」（“罢了”、“算了”）' },
+          { word: '也夫', punct: '。', label: '复音句尾「也夫」（表感叹或推断）' },
+          { word: '也哉', punct: '！', label: '复音句尾「也哉」（表强烈感叹或反问）' },
+          { word: '乎哉', punct: '？', label: '复音句尾「乎哉」（表反问或感叹）' },
+          { word: '也者', punct: '，', label: '复音提顿「也者」（用于句中提示主语，后接解释）' },
+          { word: '者也', punct: '。', label: '复音判断句尾「者也」（典型判断句收束）' },
+          { word: '者矣', punct: '。', label: '复音句尾「者矣」（表判断兼已然语气）' },
+          { word: '之有', punct: '？', label: '复音反问句尾「之有」（宾语前置反问收束）' },
+          { word: '之谓', punct: '。', label: '复音判断句尾「之谓」（“说的就是……吧”）' },
+          { word: '奈之何', punct: '？', label: '复音反问句尾「奈之何」（“拿它怎么办呢”）' }
+        ]
+      },
+      // 固定句式（支持 inner 内部标点 + mark_after 句末标点）
+      fixed_structures: [
+        {
+          regex: '([^，。？！]{2,12}者)([^，。？！]{2,16}也)',
+          inner: [{ group: 1, punct: '，', label: '判断句「……者，……也」主语后提顿' }],
+          mark_after: '。',
+          label: '典型判断句式「……者，……也」'
+        },
+        {
+          regex: '(不亦[^，。？！]{1,10}乎)',
+          inner: [],
+          mark_after: '？',
+          label: '固定反问句式「不亦……乎」（“不也是……吗”）'
+        },
+        {
+          regex: '(无乃[^，。？！]{1,10}乎)',
+          inner: [],
+          mark_after: '？',
+          label: '固定委婉反问句式「无乃……乎」（“恐怕……吧”）'
+        },
+        {
+          regex: '(得无[^，。？！]{1,10}乎)',
+          inner: [],
+          mark_after: '？',
+          label: '固定揣测反问句式「得无……乎」（“莫非……吗”）'
+        },
+        {
+          regex: '(何[^，。？！]{1,8}之有)',
+          inner: [],
+          mark_after: '？',
+          label: '宾语前置反问句式「何……之有」（“有什么……呢”）'
+        },
+        {
+          regex: '(岂[^，。？！]{1,14}[乎哉耶])',
+          inner: [],
+          mark_after: '？',
+          label: '固定反问句式「岂……乎/哉」（“难道……吗”）'
+        },
+        {
+          regex: '(何必[^，。？！]{1,24}[哉乎])',
+          inner: [],
+          mark_after: '！',
+          label: '固定反问感叹句式「何必……哉」'
+        },
+        {
+          regex: '([^，。？！]{1,4}[曰云])([^，。？！]{2,20})',
+          inner: [{ group: 1, punct: '，', label: '对话提示词「曰/云」后停顿' }],
+          mark_after: '',
+          label: '对话引导结构「……曰/云，……」'
+        }
+      ]
+    };
+
+    // ==================== 3. 初始化与状态 ====================
     if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     let t2sConverter = null, s2tConverter = null;
     if (window.OpenCC && typeof OpenCC.Converter === 'function') {
@@ -319,16 +460,13 @@
     let currentRawClean = ''; 
     let standardPunctMap = {}; 
     let standardRuleExplain = {}; 
+    let matchedRuleCount = 0;
     let userMarks = {}; 
     let isTrad = false; 
     let activeCharIndex = -1;
     let aiPunctuatedText = '';
     let currentSourceText = '';
 
-    function escapeHTML(value) {
-      return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
-    }
-    // 删除标点和空白，但保留英文、数字及其他字符。
     function stripPunctuation(value) { return String(value ?? '').replace(/[\s\p{P}\p{S}]/gu, ''); }
     function extractJSON(content) {
       const cleaned = String(content ?? '').replace(/^\uFEFF/, '').replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
@@ -352,7 +490,7 @@
       return answer;
     }
 
-    // ==================== 配置与题库加载 ====================
+    // ==================== 4. 配置与云端题库加载 ====================
     window.toggleConfig = function() {
       const panel = document.getElementById('aiConfigPanel');
       panel.classList.toggle('hidden');
@@ -384,21 +522,27 @@
           getJSON('cz.json'), getJSON('gz.json'), getJSON('古文断句标点规则库.json',true)
         ]);
         const extract = obj => Array.isArray(obj?.['文言文文章']) ? obj['文言文文章'].map(x=>({title:String(x?.['篇名'] ?? '未命名课文'),content:String(x?.['正文'] ?? '')})) : [];
-        CLOUD_DATA = {shici:Array.isArray(shici)?shici:[],xuci:Array.isArray(xuci)?xuci:[],jushi:Array.isArray(jushi)?jushi:[],rules:rules&&typeof rules==='object'?rules:{},texts:[...extract(cz),...extract(gz)]};
+        CLOUD_DATA = {
+          shici: Array.isArray(shici) ? shici : [],
+          xuci: Array.isArray(xuci) ? xuci : [],
+          jushi: Array.isArray(jushi) ? jushi : [],
+          rules: (rules && typeof rules === 'object') ? rules : {},
+          texts: [...extract(cz), ...extract(gz)]
+        };
         isDataLoaded = true;
         statusEl.textContent = i18n[currentLang].loaded;
         statusEl.className = 'text-xs text-green-600 font-medium';
         const sel = document.getElementById('textSelect');
         sel.replaceChildren();
-        const first = document.createElement('option'); first.value=''; first.textContent=i18n[currentLang].select_text; sel.appendChild(first);
+        const first = document.createElement('option'); first.value=''; first.textContent=i18n[currentLang].select_text_ready; sel.appendChild(first);
         CLOUD_DATA.texts.forEach((t,i)=>{const o=document.createElement('option');o.value=String(i);o.textContent=t.title;sel.appendChild(o);});
       } catch(err) {
-        isDataLoaded = false; statusEl.textContent = `${i18n[currentLang].load_fail}：${err.message}`;
-        statusEl.className = 'text-xs text-red-600 font-medium'; console.error(err);
+        isDataLoaded = false; statusEl.textContent = `${i18n[currentLang].load_fail}`;
+        statusEl.className = 'text-xs text-orange-600 font-medium'; console.error(err);
       } finally { button.disabled = false; }
     };
 
-    // ==================== 文件上传与 OCR ====================
+    // ==================== 5. 文件上传与 OCR ====================
     window.handleFileUpload = async function(event) {
       const file = event.target.files?.[0]; if (!file) return;
       event.target.value = '';
@@ -460,12 +604,233 @@
       catch(err) { alert(`转换失败：${err.message}`); }
     };
 
-    // ==================== 核心练习逻辑 ====================
+    // ==================== 6. 核心规则断句引擎（完整适配 7 大数据结构） ====================
+    function getMergedRules() {
+      const cloudR = (isDataLoaded && CLOUD_DATA.rules && typeof CLOUD_DATA.rules === 'object') ? CLOUD_DATA.rules : {};
+      const b = BUILTIN_RULES_DB;
+
+      const mergeList = (baseList, extraList, keyField) => {
+        const map = new Map();
+        (Array.isArray(baseList) ? baseList : []).forEach(item => {
+          const k = typeof item === 'string' ? item : item?.[keyField];
+          if (k) map.set(k, typeof item === 'string' ? { [keyField]: item } : item);
+        });
+        (Array.isArray(extraList) ? extraList : []).forEach(item => {
+          const k = typeof item === 'string' ? item : item?.[keyField];
+          if (k) map.set(k, typeof item === 'string' ? { [keyField]: item } : item);
+        });
+        return Array.from(map.values());
+      };
+
+      return {
+        fa_yu: mergeList(b.sentence_start.fa_yu, cloudR.sentence_start?.fa_yu, 'word'),
+        time_words: mergeList(b.sentence_start.time_words, cloudR.sentence_start?.time_words, 'word'),
+        compound_function_words: mergeList(b.sentence_start.compound_function_words, cloudR.sentence_start?.compound_function_words, 'word'),
+        particles: mergeList(b.sentence_end.particles, cloudR.sentence_end?.particles, 'char'),
+        compound_endings: mergeList(b.sentence_end.compound_endings, cloudR.sentence_end?.compound_endings, 'word'),
+        fixed_structures: [
+          ...(Array.isArray(cloudR.fixed_structures) ? cloudR.fixed_structures : []),
+          ...b.fixed_structures
+        ]
+      };
+    }
+
+    function runEngineFromRules(clean) {
+      // 若原文含繁体字，内部转简体匹配规则，索引位置与原文字完全一一对应
+      const simpClean = t2sConverter ? t2sConverter(clean) : clean;
+      const n = simpClean.length;
+      const punctMap = {};
+      const ruleExplain = {};
+      const locked = {}; // 锁定多字虚词/复音句尾内部不被拆散
+      let ruleHits = 0;
+
+      if (!n) return { punctMap, ruleExplain, ruleHits: 0 };
+      const rules = getMergedRules();
+
+      const setMark = (idx, punct, explainObj) => {
+        if (idx < 0 || idx >= n || !punct) return;
+        // 句末符号（。？！）优先级高于停顿逗号（，）
+        const existing = punctMap[idx];
+        if (!existing || ((existing === '，' || existing === '、') && (punct === '。' || punct === '？' || punct === '！'))) {
+          if (!existing) ruleHits++;
+          punctMap[idx] = punct;
+          ruleExplain[idx] = explainObj;
+        }
+      };
+
+      // (1) 处理复音句尾格式 sentence_end.compound_endings（如：而已、者也、之有、乎哉）
+      rules.compound_endings.forEach(item => {
+        const w = item.word;
+        if (!w) return;
+        let idx = simpClean.indexOf(w);
+        while (idx !== -1) {
+          const endIdx = idx + w.length - 1;
+          for (let k = idx; k < endIdx; k++) locked[k] = true;
+          setMark(endIdx, item.punct || '。', {
+            label: item.label || `复音句尾「${w}」后断句`,
+            category: 'sentence_end.compound_endings'
+          });
+          idx = simpClean.indexOf(w, idx + w.length);
+        }
+      });
+
+      // (2) 处理句首标志：time_words 时间词 & compound_function_words 复音虚词（在词前断开）
+      const startWordGroups = [
+        { list: rules.time_words, cat: 'sentence_start.time_words', defaultPunct: '，', desc: '时间词句首标志' },
+        { list: rules.compound_function_words, cat: 'sentence_start.compound_function_words', defaultPunct: '。', desc: '复音虚词句首标志' }
+      ];
+
+      startWordGroups.forEach(group => {
+        group.list.forEach(item => {
+          const w = item.word;
+          if (!w) return;
+          let idx = simpClean.indexOf(w);
+          while (idx !== -1) {
+            // 锁定复音词内部不被拆分
+            for (let k = idx; k < idx + w.length - 1; k++) locked[k] = true;
+            if (idx > 0 && !locked[idx - 1]) {
+              setMark(idx - 1, item.punct_before || item.punct || group.defaultPunct, {
+                label: item.label || `${group.desc}「${w}」前断句`,
+                category: group.cat
+              });
+            }
+            idx = simpClean.indexOf(w, idx + w.length);
+          }
+        });
+      });
+
+      // (3) 处理单字句首发语词 sentence_start.fa_yu（如：夫、盖、唯、惟、斯）
+      rules.fa_yu.forEach(item => {
+        const w = item.word;
+        if (!w) return;
+        for (let i = 1; i < n; i++) {
+          if (locked[i - 1]) continue;
+          if (simpClean.slice(i, i + w.length) === w) {
+            const contextWindow = simpClean.slice(Math.max(0, i - 2), Math.min(n, i + w.length + 2));
+            const exList = Array.isArray(item.exceptions) ? item.exceptions : [];
+            const isException = exList.some(ex => {
+              const exStr = typeof ex === 'string' ? ex : ex?.context;
+              return exStr && contextWindow.includes(exStr);
+            });
+            // 排除句末「夫」（如：逝者如斯夫）
+            const isFinalFu = (w === '夫' && (i === n - 1 || '也矣焉耳乎哉'.includes(simpClean[i + 1])));
+            if (!isException && !isFinalFu) {
+              setMark(i - 1, item.punct_before || item.punct || '。', {
+                label: item.label || `句首发语词「${w}」前断句`,
+                category: 'sentence_start.fa_yu'
+              });
+            }
+          }
+        }
+      });
+
+      // (4) 处理固定句式 fixed_structures（同时支持 inner 内部标点与 mark_after 末尾标点）
+      rules.fixed_structures.forEach(st => {
+        if (!st?.regex) return;
+        try {
+          const re = new RegExp(st.regex, 'g');
+          let m;
+          while ((m = re.exec(simpClean)) !== null) {
+            const fullStart = m.index;
+            const fullEnd = fullStart + m[0].length - 1;
+
+            // 4a. 处理 inner 内部标点（支持两种 JSON 写法：按捕获组 group 或按子串 pattern/word）
+            if (Array.isArray(st.inner)) {
+              st.inner.forEach(inRule => {
+                if (typeof inRule.group === 'number' && m[inRule.group]) {
+                  const subStr = m[inRule.group];
+                  const subPos = m[0].indexOf(subStr);
+                  if (subPos !== -1) {
+                    const innerEndIdx = fullStart + subPos + subStr.length - 1;
+                    setMark(innerEndIdx, inRule.punct || '，', {
+                      label: inRule.label || `${st.label || '固定句式'}（内部停顿）`,
+                      category: 'fixed_structures.inner'
+                    });
+                  }
+                } else if (inRule.pattern || inRule.word) {
+                  const target = inRule.pattern || inRule.word;
+                  const subPos = m[0].indexOf(target);
+                  if (subPos !== -1) {
+                    const innerEndIdx = fullStart + subPos + target.length - 1;
+                    setMark(innerEndIdx, inRule.punct || '，', {
+                      label: inRule.label || `${st.label || '固定句式'}（内部停顿）`,
+                      category: 'fixed_structures.inner'
+                    });
+                  }
+                }
+              });
+            }
+
+            // 4b. 处理 mark_after 句式末尾标点
+            if (st.mark_after && fullEnd >= 0) {
+              setMark(fullEnd, st.mark_after, {
+                label: st.label || `固定句式「${m[0]}」末尾断句`,
+                category: 'fixed_structures.mark_after'
+              });
+            }
+            if (!m[0].length) re.lastIndex++;
+          }
+        } catch (err) {
+          console.warn('断句规则正则无效：', st.regex, err);
+        }
+      });
+
+      // (5) 处理单字句尾语气词 sentence_end.particles（如：也、矣、焉、耳、乎、哉、耶、欤）
+      rules.particles.forEach(p => {
+        if (!p?.char) return;
+        for (let i = 0; i < n; i++) {
+          if (locked[i]) continue;
+          if (simpClean[i] === p.char) {
+            let skip = false;
+            const contextWindow = simpClean.slice(Math.max(0, i - 1), Math.min(n, i + 2));
+            if (Array.isArray(p.exceptions)) {
+              p.exceptions.forEach(ex => {
+                const exStr = typeof ex === 'string' ? ex : ex?.context;
+                if (exStr && contextWindow.includes(exStr)) skip = true;
+              });
+            }
+            if (!skip) {
+              setMark(i, p.punct || '。', {
+                label: p.label || `句末语气词「${p.char}」后断句`,
+                category: 'sentence_end.particles'
+              });
+            }
+          }
+        }
+      });
+
+      // (6) 全文末尾兜底句号（不计入规则命中数，用于检测“零规则命中”）
+      if (!punctMap[n - 1]) {
+        punctMap[n - 1] = '。';
+        ruleExplain[n - 1] = { label: '全文结尾默认收束', isFallback: true };
+      }
+
+      return { punctMap, ruleExplain, ruleHits };
+    }
+
+    // ==================== 7. UI 渲染与提示横幅 ====================
+    function updateRuleBanner(hits) {
+      const banner = document.getElementById('ruleNoticeBanner');
+      banner.classList.remove('hidden');
+      if (hits === 0) {
+        banner.className = 'mb-3 px-4 py-2.5 rounded-lg text-xs border bg-amber-50 border-amber-300 text-amber-900 leading-relaxed';
+        banner.textContent = i18n[currentLang].no_rule_warn;
+      } else {
+        banner.className = 'mb-3 px-4 py-2 rounded-lg text-xs border bg-emerald-50 border-emerald-200 text-emerald-800';
+        banner.textContent = i18n[currentLang].rule_hit_info.replace('{count}', String(hits));
+      }
+    }
+
+    function hideRuleBanner() {
+      document.getElementById('ruleNoticeBanner').classList.add('hidden');
+    }
+
     window.showStandardText = function() {
       const sel = document.getElementById('textSelect');
       if (sel.value === "") { alert(i18n[currentLang].alert_select); return; }
       const textObj = CLOUD_DATA.texts[sel.value];
       currentMode = 'standard_view'; currentSourceText = textObj.content;
+      hideRuleBanner();
       document.getElementById('viewTitle').textContent = `${i18n[currentLang].std_title}${textObj.title}`;
       const card=document.createElement('div'); card.className='p-6 bg-white border border-[#E2D7C3] rounded-lg leading-loose text-xl tracking-wider';
       card.style.textIndent='2em'; card.style.whiteSpace='pre-wrap'; card.textContent=textObj.content;
@@ -490,175 +855,20 @@
       const result = runEngineFromRules(currentRawClean);
       standardPunctMap = result.punctMap;
       standardRuleExplain = result.ruleExplain;
+      matchedRuleCount = result.ruleHits;
 
+      hideRuleBanner();
       renderPracticeView();
-      document.getElementById('viewTitle').innerText = i18n[currentLang].practice_title;
-      document.getElementById('aiStatus').textContent = isDataLoaded ? '规则：内置引擎 + 云端规则库' : '规则：内置引擎（未加载云端规则库）';
-      document.getElementById('hintText').innerText = i18n[currentLang].practice_hint;
+      document.getElementById('viewTitle').textContent = i18n[currentLang].practice_title;
+      document.getElementById('hintText').textContent = i18n[currentLang].practice_hint;
       
       document.getElementById('aiResultArea').classList.remove('hidden');
-      document.getElementById('aiResultTitle').innerText = i18n[currentLang].ai_parse_title;
-      document.getElementById('aiResultContent').innerText = i18n[currentLang].waiting;
+      document.getElementById('aiResultTitle').textContent = i18n[currentLang].ai_parse_title;
+      document.getElementById('aiResultContent').textContent = i18n[currentLang].waiting;
       document.getElementById('aiStatus').textContent = '';
       document.getElementById('btnTranslate').classList.remove('hidden');
     }; 
 
-    function runCloudRules(clean) {
-      const n=clean.length, punctMap={}, ruleExplain={}; if(!n) return {punctMap,ruleExplain};
-      const particles=Array.isArray(CLOUD_DATA?.rules?.sentence_end?.particles)?CLOUD_DATA.rules.sentence_end.particles:[];
-      particles.forEach(p=>{
-        if(!p?.char) return;
-        for(let i=0;i<n;i++) if(clean[i]===p.char && !punctMap[i]) {
-          let skip=false;
-          if(Array.isArray(p.exceptions)) p.exceptions.forEach(ex=>{if(String(ex?.context||'').includes('者') && clean[i+1]==='者') skip=true;});
-          if(!skip) {punctMap[i]=p.punct||'。';ruleExplain[i]=p;}
-        }
-      });
-      const structures=Array.isArray(CLOUD_DATA?.rules?.fixed_structures)?CLOUD_DATA.rules.fixed_structures:[];
-      structures.forEach(st=>{
-        if(!st?.regex) return;
-        try {const re=new RegExp(st.regex,'g');let m;while((m=re.exec(clean))!==null){const end=m.index+m[0].length-1;if(st.mark_after&&end>=0&&!punctMap[end]){punctMap[end]=st.mark_after;ruleExplain[end]=st;}if(!m[0].length)re.lastIndex++;}}
-        catch(err){console.warn('断句规则正则无效：',st.regex,err);}
-      });
-      if(!punctMap[n-1]) {punctMap[n-1]='。';ruleExplain[n-1]={label:'句意结束（默认规则）'};}
-      return {punctMap,ruleExplain};
-    }
-
-    // ==================== 内置离线断句引擎（不依赖云端规则库） ====================
-    const BI_PROTECT = ['夫子','大夫','匹夫','独夫','农夫','丈夫','士大夫','孔子','孟子','曾子','颜渊','子路','子贡','沛公','项羽','先帝','陛下','中国','同志','君子','小人','天下','诸侯','六国','秦人','所以','以为','今日','先王','朝廷','有司','咸阳','邯郸','灵魂','鸿儒','白丁','肉躯','万物','百姓','国家','君臣','父子','礼义','仁义','道德','天地','万民','圣人','贤人','明主','忠臣'];
-    const BI_START2 = ['若夫','至若','且夫','然则','是以','是故','然而','而况','至于','故夫','今夫','试问','向使','故曰','诚能','既得','重念','窃以','虽欲','于是','不然','然后','是故'];
-    const BI_COMMA_START = new Set(['然则','是以','是故','诚能','既得','窃以','故曰','虽欲','然后','于是','然而']);
-    const BI_QUESTION = [/不亦.{1,10}?乎/g, /何.{1,8}?之有/g, /无乃.{1,10}?乎/g, /岂.{1,14}?[乎哉耶]/g, /安能.{1,12}?[乎哉耶]/g, /何必.{1,26}?哉/g, /其可.{1,4}乎/g, /将奈之何/g, /孰与.{1,10}?[乎哉耶]/g, /何哉/g];
-    const BI_FUNC = new Set('之而以于其所不无有为则如若是惟然必尽'.split(''));
-
-    function builtinPunctuate(c) {
-      const n = c.length, mk = new Array(n).fill(''), lock = new Array(n).fill(false), ex = {};
-      const put = (i, p, why, force) => { if (i < 0 || i >= n || mk[i] || (lock[i] && !force)) return false; mk[i] = p; ex[i] = { label: why }; return true; };
-      const gap = i => { let g = 0; for (let j = i - 1; j >= 0 && !mk[j]; j--) g++; return g + 1; }; // 距上一标点的字数（含本字）
-      const isStop = p => /[。？！]/.test(p);
-
-      // 1 专名保护
-      BI_PROTECT.forEach(w => { let k = c.indexOf(w); while (k !== -1) { for (let j = k; j < k + w.length - 1; j++) lock[j] = true; k = c.indexOf(w, k + 1); } });
-
-      // 2 固定疑问/反问句式
-      BI_QUESTION.forEach(re => { re.lastIndex = 0; let m; while ((m = re.exec(c)) !== null) {
-        const s = m.index, e = s + m[0].length - 1;
-        for (let k = s; k < e; k++) lock[k] = true;
-        put(s - 1, mk[s - 1] || '，', '固定句式前停顿');
-        put(e, '？', '固定疑问/反问句式（' + m[0].slice(0, 6) + '…）', true);
-        if (m[0].length === 0) re.lastIndex++; } });
-
-      // 3 感叹独句
-      ['嗟乎', '呜呼', '噫嘻', '悲夫', '哀哉'].forEach(w => { let k = c.indexOf(w); while (k !== -1) {
-        if (k > 0) put(k - 1, '。', '感叹语前断句');
-        lock[k] = true; put(k + w.length - 1, '！', '感叹独句', true); k = c.indexOf(w, k + w.length); } });
-
-      // 4 引语标志“曰/云”
-      for (let i = 1; i < n; i++) {
-        const ch = c[i]; if (ch !== '曰' && ch !== '云') continue;
-        if (ch === '云' && (c[i + 1] === '尔' || '人亦如何不'.includes(c[i - 1]))) continue;
-        if (ch === '曰' && '或故如又复'.includes(c[i - 1])) { put(i - 2, '。', '“曰”前断句'); put(i, '：', '引出话语', true); continue; }
-        const sp = '子公王渊路人'.includes(c[i - 1]) && i >= 2 ? i - 2 : i - 1;
-        put(sp - 1, '。', '引语前断句'); put(i, '：', '“' + ch + '”引出话语', true);
-      }
-
-      // 5 句首发语词/连词
-      for (let i = 1; i < n; i++) {
-        if (mk[i - 1] || lock[i - 1]) continue;
-        const two = c.slice(i, i + 2);
-        if (BI_START2.includes(two) && gap(i - 1) >= 3) { put(i - 1, BI_COMMA_START.has(two) ? '，' : '。', '句首词“' + two + '”前停顿'); continue; }
-        const ch = c[i];
-        if ('夫盖惟洎'.includes(ch) && gap(i - 1) >= 4) {
-          if (ch === '夫' && (i === n - 1 || '也矣乎哉'.includes(c[i + 1]) || '悲独农丈匹士若且今'.includes(c[i - 1]))) continue;
-          if (ch === '盖' && '之乎'.includes(c[i - 1])) continue;
-          if (ch === '惟' && c[i - 1] === '畏') continue;
-          put(i - 1, ch === '惟' ? '，' : '。', '发语词“' + ch + '”前断句');
-        }
-      }
-
-      // 6 句末语气词
-      for (let i = 0; i < n; i++) {
-        if (mk[i] || lock[i]) continue; const ch = c[i], nx = c[i + 1] || '', g = gap(i);
-        if (ch === '也') {
-          if ('者乎哉'.includes(nx) || g < 2) continue;
-          if (nx === '则') { put(i, '，', '“也则”后停顿'); continue; }
-          const tail = c.slice(i + 1, i + 9); const nextAlso = tail.includes('也') && !/[曰云]/.test(tail.slice(0, tail.indexOf('也')));
-          put(i, nextAlso ? '，' : '。', nextAlso ? '“也”表停顿（后有对应分句）' : '句末语气词“也”');
-        } else if (ch === '矣') { if (g >= 2 && !'乎哉'.includes(nx)) put(i, '。', '句末语气词“矣”'); }
-        else if (ch === '焉') { if (g >= 3 && nx !== '者' && nx !== '能') put(i, '。', '句末语气词“焉”'); }
-        else if (ch === '耳') { if (g >= 3 && !'目鼻'.includes(nx)) put(i, '。', '句末语气词“耳”'); }
-        else if ('乎耶欤哉'.includes(ch)) {
-          if (g >= 4 && !'其之于以而则'.includes(nx)) {
-            const tail = c.slice(Math.max(0, i - 12), i); put(i, ch === '哉' && !/[何岂孰安]/.test(tail) ? '！' : '？', '句末语气词“' + ch + '”');
-          }
-        }
-      }
-
-      // 7 者/而/则/虽 等虚词处的停顿
-      for (let i = 1; i < n - 1; i++) {
-        const ch = c[i], g = gap(i);
-        if (ch === '者' && !mk[i] && !lock[i] && g >= 2) {
-          const tail = c.slice(i + 1, i + 15); const k = tail.indexOf('也');
-          if ('必则非'.includes(c[i + 1]) || (k >= 2 && !/[，。？！；：]/.test(tail.slice(0, k)) && !/[曰云]/.test(tail.slice(0, k)))) put(i, '，', '“者”后停顿（判断/分层）');
-        }
-        if ((ch === '而' || ch === '则' || ch === '虽') && g >= 4 && !mk[i - 1] && !lock[i - 1]) {
-          if (ch === '则' && '然是故法准规'.includes(c[i - 1])) continue;
-          if (ch === '而' && c[i + 1] === '已') continue;
-          put(i - 1, '，', '连词“' + ch + '”前停顿');
-        }
-      }
-
-      // 8 对偶/排比：把相邻等长词组分开
-      const stops = []; for (let i = 0; i < n; i++) if (mk[i]) stops.push(i);
-      let s0 = 0; const segs = []; stops.forEach(i => { segs.push([s0, i]); s0 = i + 1; }); if (s0 < n) segs.push([s0, n - 1]);
-      segs.forEach(([a, b]) => { let pos = a;
-        while (b - pos + 1 >= 8) { let hit = false;
-          for (const len of [4, 5, 6]) { if (b - pos + 1 < len * 2) continue;
-            const s1 = c.slice(pos, pos + len), s2 = c.slice(pos + len, pos + len * 2); let sc = 0;
-            for (let j = 0; j < len; j++) { if (s1[j] === s2[j]) sc += 2; else if (BI_FUNC.has(s1[j]) && BI_FUNC.has(s2[j])) sc += 1.5; }
-            if (sc >= (len === 4 ? 3.5 : len === 5 ? 4 : 4.5) && !lock[pos + len - 1]) { put(pos + len - 1, '，', '对偶/排比分句'); pos += len; hit = true; break; } }
-          if (!hit) pos++; } });
-
-      // 9 过长无标点处：取最接近中点的虚词边界切分
-      let start = 0;
-      const splitRun = (p, q) => { // 对 [p,q] 内无标点的片段递归切分
-        if (q - p + 1 <= 11) return;
-        const mid = (p + q) / 2; let best = -1, bd = 1e9;
-        for (let j = p + 2; j <= q - 3; j++) {
-          if (lock[j] || mk[j]) continue;
-          const ok = '者之也'.includes(c[j]) || '而则乃故以于'.includes(c[j + 1]);
-          if (!ok) continue; const d = Math.abs(j - mid);
-          if (d < bd) { bd = d; best = j; }
-        }
-        if (best < 0) return;
-        put(best, '，', '分句过长，按虚词边界切分');
-        splitRun(p, best); splitRun(best + 1, q);
-      };
-      for (let i = 0; i <= n; i++) { if (i === n || mk[i]) { splitRun(start, i === n ? n - 1 : i - 1); start = i + 1; } }
-
-      // 10 把逗号累积成句号：≥3 个逗号或超 24 字则收束
-      let commas = 0, lastStop = -1;
-      for (let i = 0; i < n; i++) { if (!mk[i]) continue;
-        if (isStop(mk[i]) || mk[i] === '：') { commas = 0; lastStop = i; continue; }
-        if (mk[i] === '，' || mk[i] === '；') { commas++;
-          if ((commas >= 4 || i - lastStop > 26) && i < n - 1 && !lock[i] && !'者也而则乃故'.includes(c[i + 1] || '')) { mk[i] = '。'; ex[i] = { label: '意群较长，收束为一句' }; commas = 0; lastStop = i; } } }
-
-      if (!mk[n - 1] || mk[n - 1] === '，') { mk[n - 1] = '。'; ex[n - 1] = { label: '全文末句收束' }; }
-      const punctMap = {}; mk.forEach((p, i) => { if (p) punctMap[i] = p; });
-      return { punctMap, ruleExplain: ex };
-    }
-
-    function runEngineFromRules(clean) {
-      let simp = clean;
-      try { if (t2sConverter) { const s = t2sConverter(clean); if (s.length === clean.length) simp = s; } } catch (_) {}
-      const base = builtinPunctuate(simp);           // 内置规则：始终可用（支持繁体）
-      const cloud = runCloudRules(clean);            // 云端规则库：若已加载则补充空缺
-      const n = clean.length;
-      Object.keys(cloud.punctMap).forEach(k => { k = Number(k); if (k !== n - 1 && !base.punctMap[k]) { base.punctMap[k] = cloud.punctMap[k]; base.ruleExplain[k] = cloud.ruleExplain[k]; } });
-      return base;
-    }
-
-    // ==================== UI 渲染与交互 ====================
     function renderPracticeView() {
       const container=document.getElementById('outputContainer'), card=document.createElement('div');
       card.className='p-6 bg-white border border-[#E2D7C3] rounded-lg leading-loose text-xl tracking-wider pb-24';
@@ -704,38 +914,89 @@
 
     window.showPunctAnalysis = function(index,punct,event) {
       if(event) event.stopPropagation();
-      const ch=currentRawClean[index]||'', title=document.getElementById('modalTitle'), body=document.getElementById('modalBody');
+      const ch=currentRawClean[index]||'', simpCh=t2sConverter?t2sConverter(ch):ch;
+      const title=document.getElementById('modalTitle'), body=document.getElementById('modalBody');
       title.replaceChildren(); body.replaceChildren();
       const t=document.createElement('span');t.textContent=`「${ch}」 `;title.appendChild(t);
-      if(currentMode==='practice') {const st=document.createElement('span'),ok=standardPunctMap[index]===punct;st.className=ok?'text-green-600 font-bold':'text-red-500 font-bold';st.textContent=ok?i18n[currentLang].correct:(currentLang==='zh'?`❌ 有误（标准为「${standardPunctMap[index]||'无标点'}」）`:`❌ Wrong (Standard: ${standardPunctMap[index]||'None'})`);title.appendChild(st);}
-      const section=(heading,lines)=>{if(!lines.length)return;const wrap=document.createElement('div');wrap.className='mb-2';const h=document.createElement('div');h.className='text-xs font-bold text-[#B83B2A] mb-1';h.textContent=heading;const ul=document.createElement('ul');ul.className='list-disc pl-4 text-xs';lines.forEach(line=>{const li=document.createElement('li');li.textContent=line;ul.appendChild(li);});wrap.append(h,ul);body.appendChild(wrap);};
+      if(currentMode==='practice') {
+        const st=document.createElement('span'),ok=standardPunctMap[index]===punct;
+        st.className=ok?'text-green-600 font-bold text-sm':'text-red-500 font-bold text-sm';
+        st.textContent=ok?i18n[currentLang].correct:(currentLang==='zh'?`❌ 有误（规则推荐「${standardPunctMap[index]||'不断开'}」）`:`❌ Wrong (Rule suggests: ${standardPunctMap[index]||'No break'})`);
+        title.appendChild(st);
+      }
+      const section=(heading,lines)=>{if(!lines.length)return;const wrap=document.createElement('div');wrap.className='mb-2';const h=document.createElement('div');h.className='text-xs font-bold text-[#B83B2A] mb-1';h.textContent=heading;const ul=document.createElement('ul');ul.className='list-disc pl-4 text-xs space-y-1';lines.forEach(line=>{const li=document.createElement('li');li.textContent=line;ul.appendChild(li);});wrap.append(h,ul);body.appendChild(wrap);};
       const rule=standardRuleExplain[index];
-      if(rule){const card=document.createElement('div');card.className='rule-card';const h=document.createElement('div');h.className='font-bold text-[#B83B2A] mb-1';h.textContent=i18n[currentLang].rule_prefix;const d=document.createElement('p');d.className='text-sm';d.textContent=rule.label||'Contextual';card.append(h,d);body.appendChild(card);}
+      if(rule){
+        const card=document.createElement('div');card.className='rule-card';
+        const h=document.createElement('div');h.className='font-bold text-[#B83B2A] mb-1';
+        h.textContent=i18n[currentLang].rule_prefix + (rule.category ? `[${rule.category}]` : '');
+        const d=document.createElement('p');d.className='text-sm';d.textContent=rule.label||'Contextual';
+        card.append(h,d);body.appendChild(card);
+      }
       if(isDataLoaded){
-        const x=CLOUD_DATA.xuci.find(item=>item?.zi===ch);if(x)section(i18n[currentLang].xuci_prefix,(Array.isArray(x.body)?x.body:[]).filter(v=>v?.[0]).map(v=>`${v[0]} ${v[1]||''}`));
-        const sh=CLOUD_DATA.shici.find(item=>item?.字===ch);if(sh)section(i18n[currentLang].shici_prefix,(Array.isArray(sh.义项)?sh.义项:[]).map(v=>`${v?.义项||''} 例：${v?.例句||''}`));
+        const x=CLOUD_DATA.xuci.find(item=>item?.zi===simpCh);if(x)section(i18n[currentLang].xuci_prefix,(Array.isArray(x.body)?x.body:[]).filter(v=>v?.[0]).map(v=>`${v[0]} ${v[1]||''}`));
+        const sh=CLOUD_DATA.shici.find(item=>item?.字===simpCh);if(sh)section(i18n[currentLang].shici_prefix,(Array.isArray(sh.义项)?sh.义项:[]).map(v=>`${v?.义项||''} 例：${v?.例句||''}`));
       }
       if(!body.childElementCount) body.textContent=currentLang==='zh'?'暂无相关规则或词义资料。':'No related rule or dictionary entry.';
       document.getElementById('infoModal').style.display='flex';
     };
 
+    // 直接生成并展示规则答案（让标点紧跟在汉字后面，未命中规则时给出明确提示）
     window.showLocalAnswer = function() {
-      if(currentMode!=='practice') return;
-      document.getElementById('viewTitle').textContent=i18n[currentLang].local_ans_title;
-      const card=document.createElement('div');card.className='p-6 bg-white border border-[#E2D7C3] rounded-lg leading-loose text-xl tracking-wider';
-      for(let i=0;i<currentRawClean.length;i++){
-        const span=document.createElement('span');span.textContent=currentRawClean[i];card.appendChild(span);
-        if(standardPunctMap[i]){const btn=document.createElement('span'),sym=document.createElement('span');btn.className='punct-analysis-btn';sym.className='punct-symbol';sym.textContent=standardPunctMap[i];btn.appendChild(sym);btn.addEventListener('click',e=>showPunctAnalysis(i,standardPunctMap[i],e));card.appendChild(btn);}
+      const raw = document.getElementById('rawInput').value.trim();
+      if (!raw) { alert(i18n[currentLang].alert_input); return; }
+
+      currentSourceText = raw;
+      currentRawClean = stripPunctuation(raw);
+      if (!currentRawClean) { alert(i18n[currentLang].alert_input); return; }
+
+      const result = runEngineFromRules(currentRawClean);
+      standardPunctMap = result.punctMap;
+      standardRuleExplain = result.ruleExplain;
+      matchedRuleCount = result.ruleHits;
+
+      currentMode = 'rule_answer';
+      document.getElementById('viewTitle').textContent = i18n[currentLang].local_ans_title;
+      document.getElementById('hintText').textContent = i18n[currentLang].local_ans_hint;
+      updateRuleBanner(matchedRuleCount);
+
+      const card = document.createElement('div');
+      card.className = 'p-6 bg-white border border-[#E2D7C3] rounded-lg leading-loose text-xl tracking-wider';
+
+      for (let i = 0; i < currentRawClean.length; i++) {
+        // 标点直接紧跟在汉字后面，中间不留多余空格或分隔符
+        const charText = document.createTextNode(currentRawClean[i]);
+        card.appendChild(charText);
+
+        if (standardPunctMap[i]) {
+          const btn = document.createElement('span');
+          const sym = document.createElement('span');
+          btn.className = 'punct-analysis-btn';
+          sym.className = 'punct-symbol';
+          sym.textContent = standardPunctMap[i];
+          btn.appendChild(sym);
+          btn.addEventListener('click', e => showPunctAnalysis(i, standardPunctMap[i], e));
+          card.appendChild(btn);
+        }
       }
-      document.getElementById('outputContainer').replaceChildren(card);hideToolbar();
+
+      document.getElementById('outputContainer').replaceChildren(card);
+      document.getElementById('aiResultArea').classList.remove('hidden');
+      document.getElementById('btnTranslate').classList.remove('hidden');
+      hideToolbar();
     };
 
-    // ==================== AI 生成答案与翻译 ====================
+    // ==================== 8. AI 生成答案与翻译 ====================
     window.showAIAnswer = async function() {
       const key=sessionStorage.getItem('deepseek_key')||localStorage.getItem('deepseek_key');
       if(!key){alert(i18n[currentLang].alert_key);toggleConfig();return;}
-      const rawText=currentRawClean||stripPunctuation(document.getElementById('rawInput').value);
+      const rawText=stripPunctuation(document.getElementById('rawInput').value)||currentRawClean;
       if(!rawText){alert(i18n[currentLang].alert_input);return;}
+      currentRawClean=rawText;
+      currentMode='ai_answer';
+      hideRuleBanner();
+      hideToolbar();
+
       const container=document.getElementById('outputContainer'),aiContent=document.getElementById('aiResultContent');
       document.getElementById('viewTitle').textContent=i18n[currentLang].ai_gen_title;
       container.textContent=i18n[currentLang].ai_generating;
@@ -760,7 +1021,8 @@
       const key=sessionStorage.getItem('deepseek_key')||localStorage.getItem('deepseek_key');if(!key){alert(i18n[currentLang].alert_key);return;}
       let fullText='';
       if(currentMode==='standard_view')fullText=currentSourceText||document.getElementById('outputContainer').innerText;
-      else if(currentMode==='practice')fullText=aiPunctuatedText||currentRawClean.split('').map((c,i)=>c+(userMarks[i]||standardPunctMap[i]||'')).join('');
+      else if(currentMode==='ai_answer')fullText=aiPunctuatedText||document.getElementById('outputContainer').innerText;
+      else if(currentMode==='practice'||currentMode==='rule_answer')fullText=currentRawClean.split('').map((c,i)=>c+(userMarks[i]||standardPunctMap[i]||'')).join('');
       else fullText=document.getElementById('rawInput').value.trim();
       if(!fullText.trim()){alert(i18n[currentLang].alert_input);return;}
       const result=document.getElementById('aiResultContent');result.textContent=i18n[currentLang].translate_loading;
@@ -785,7 +1047,6 @@
       }
     });
 
-    // 初始化语言
     document.addEventListener('DOMContentLoaded', applyLanguage);
     if (document.readyState !== 'loading') applyLanguage();
   </script>
